@@ -63,47 +63,95 @@
 - 后端：Next.js Route Handlers（`/api/*`）
 - 校验：`zod`
 - LLM 接入：OpenAI 兼容接口（可替换）
-- 存储：MVP 阶段可先内存 + 本地文件（后续切 `PostgreSQL`）
+- 存储：MVP 先用本地文件 + 存储抽象（`DatasetStore`），后续可热插拔迁移到 `PostgreSQL / Supabase / 其他 BaaS`
 
-## 4. 目标目录结构（建议）
+## 4. 当前目录结构（关键）
 
 ```txt
 .
 ├─ app/
-│  ├─ page.tsx                     # 首页壳层
+│  ├─ page.tsx                                  # 首页壳层
+│  ├─ online-eval/page.tsx                      # 交互效果在线评测页
 │  └─ api/
-│     ├─ ingest/route.ts          # 数据接收与格式识别
-│     └─ evaluate/route.ts        # 评估入口（可合并）
+│     ├─ ingest/route.ts                        # 数据接收与格式识别
+│     ├─ evaluate/route.ts                      # 评估入口
+│     ├─ online-eval/replay/route.ts            # 在线回放评测
+│     ├─ workbench-baselines/route.ts           # 保存工作台基线
+│     ├─ workbench-baselines/[customerId]/route.ts
+│     ├─ workbench-baselines/[customerId]/[runId]/route.ts
+│     └─ eval-datasets/
+│        ├─ cases/route.ts                      # 评测案例创建/列表
+│        ├─ cases/[caseId]/route.ts             # 单案例查询
+│        ├─ sample-batches/route.ts             # 临时评测集抽样
+│        └─ sample-batches/[sampleBatchId]/route.ts
 ├─ src/
-│  ├─ types/
-│  │  └─ pipeline.ts              # 三层数据契约
 │  ├─ schemas/
-│  │  ├─ api.ts                   # API 请求校验
-│  │  └─ chart-payload.schema.json
+│  │  ├─ api.ts                                # ingest/evaluate 校验
+│  │  ├─ eval-datasets.ts                      # 评测集 API 校验
+│  │  ├─ online-eval.ts                        # 在线评测 API 校验
+│  │  └─ workbench.ts                          # 基线 API 校验
 │  ├─ parsers/
 │  │  ├─ csvParser.ts
 │  │  ├─ jsonParser.ts
 │  │  ├─ textParser.ts
 │  │  └─ index.ts
 │  ├─ pipeline/
-│  │  ├─ normalize.ts             # 标准化与基础补全
-│  │  ├─ enrich.ts                # Enriched 中间层生成
-│  │  ├─ objectiveMetrics.ts      # 客观指标
-│  │  ├─ subjectiveMetrics.ts     # 主观指标（LLM Judge）
-│  │  ├─ chartBuilder.ts          # 图表载荷构建
-│  │  ├─ suggest.ts               # 优化建议生成
-│  │  └─ summary.ts               # 概览卡片组装
-│  ├─ config/
-│  │  └─ chartTemplates.ts
+│  │  ├─ enrich.ts                             # Enriched 中间层生成
+│  │  ├─ objectiveMetrics.ts                   # 客观指标
+│  │  ├─ subjectiveMetrics.ts                  # 主观指标（LLM Judge）
+│  │  ├─ chartBuilder.ts                       # 图表载荷构建
+│  │  ├─ suggest.ts                            # 优化建议生成
+│  │  ├─ summary.ts                            # 概览卡片组装
+│  │  └─ evaluateRun.ts                        # 可复用评估流水线
+│  ├─ eval-datasets/
+│  │  ├─ storage/
+│  │  │  ├─ dataset-store.ts                   # 存储接口（热插拔入口）
+│  │  │  ├─ file-system-dataset-store.ts       # 文件系统实现
+│  │  │  └─ types.ts
+│  │  ├─ sample-batch.ts                       # 分层抽样逻辑
+│  │  └─ case-transcript-hash.ts               # 去重 hash 逻辑
+│  ├─ workbench/
+│  │  └─ baseline-file-store.ts                # 工作台基线存储
+│  ├─ online-eval/
+│  │  └─ replayAssistant.ts                    # 在线回放替换 assistant
 │  ├─ components/
-│  │  └─ home/                    # 首页控制台组件
+│  │  ├─ home/                                 # 首页控制台
+│  │  └─ online-eval/                          # 在线评测 UI
+│  ├─ types/
+│  │  └─ pipeline.ts                           # 三层数据契约
 │  └─ lib/
-│     └─ siliconflow.ts           # LLM 调用封装
+│     └─ siliconflow.ts                        # LLM 调用封装
+├─ eval-datasets/                               # 评测集文件结构与索引
 ├─ mock-chatlog/
-│  ├─ raw-data/
-│  └─ enriched-data/
+│  ├─ raw-data/                                # mock 原始对话
+│  ├─ enriched-data/                           # 评估中间产物
+│  └─ baselines/                               # 工作台基线快照
+├─ eval-system-概述/
+│  ├─ 1-评测集构建.md
+│  ├─ 2-基线构建与在线评测联动.md
+│  └─ 3-评测集构建与在线评测实现路径（业务版）.md
 └─ 执行规划.md
 ```
+
+## 4.1 需求与方案文档索引（`eval-system-概述`）
+
+- `1-评测集构建.md`：评测集目标、入库口径、去重、抽样、baseline 与 success 指标定义。
+- `2-基线构建与在线评测联动.md`：首页保存基线、在线回放对比、customerId + runId 的联动规则。
+- `3-评测集构建与在线评测实现路径（业务版）.md`：面向非技术成员的阶段路径、协同分工与验收口径。
+
+## 4.2 存储热插拔策略（后续数据库迁移）
+
+当前实现已将评测集存储能力抽象为 `DatasetStore`，业务逻辑只依赖接口，不依赖具体存储介质：
+
+- 现阶段：`FileSystemDatasetStore`（本地文件）用于 MVP 快速落地与可视化调试。
+- 后续阶段：可新增并切换到数据库/BaaS 实现（例如 `PostgreSQL`、`Supabase`）。
+
+建议迁移路径：
+
+1. 保持 `DatasetStore` 接口稳定（create/list/checkDuplicate/saveSampleBatch 等）。
+2. 新增 `SupabaseDatasetStore`（或 `PostgresDatasetStore`）并完成等价实现。
+3. 在 `createDatasetStore()` 中通过环境变量切换存储实现。
+4. 先做双写/回放校验，再切主读，最后下线文件系统主路径。
 
 ## 5. 统一数据模型
 

@@ -1,0 +1,198 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  padding: 28px 18px 40px;
+  background:
+    radial-gradient(circle at top left, rgb(34 211 238 / 0.12), transparent 28%),
+    linear-gradient(180deg, #050816 0%, #060b18 42%, #02050d 100%);
+  color: #e5eefc;
+}
+
+.main {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.topBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.titleBlock h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  letter-spacing: -0.03em;
+}
+
+.titleBlock p {
+  margin: 0;
+  color: #94a3b8;
+  max-width: 72ch;
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgb(56 189 248 / 0.35);
+  color: #e0f2fe;
+  text-decoration: none;
+  font-size: 14px;
+  background: rgb(14 165 233 / 0.12);
+}
+
+.navLink:hover {
+  border-color: rgb(125 211 252 / 0.55);
+}
+
+.panel {
+  border: 1px solid rgb(148 163 184 / 0.14);
+  border-radius: 20px;
+  padding: 20px;
+  background: rgb(15 23 42 / 0.72);
+}
+
+.panel h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.panel > p {
+  margin: 0 0 16px;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.formGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(71 85 105 / 0.85);
+  background: rgb(2 6 23 / 0.55);
+  color: #f1f5f9;
+  font-size: 14px;
+}
+
+.textarea {
+  min-height: 72px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.primaryButton {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: #0f172a;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+}
+
+.primaryButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgb(100 116 139 / 0.85);
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.error {
+  color: #fecaca;
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+
+.notice {
+  color: #bae6fd;
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+
+.metaList {
+  margin: 0;
+  padding-left: 18px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.compareGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.compareCard {
+  border: 1px solid rgb(51 65 85 / 0.6);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgb(2 6 23 / 0.45);
+}
+
+.compareCard h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.compareCard > p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.chartCanvas {
+  width: 100%;
+  min-width: 0;
+  min-height: 280px;
+}
+
+.rawPreview {
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+  color: #cbd5e1;
+  background: rgb(15 23 42 / 0.9);
+  border-radius: 10px;
+  padding: 10px;
+  border: 1px solid rgb(51 65 85 / 0.5);
+}

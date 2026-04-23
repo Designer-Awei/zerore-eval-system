@@ -1,0 +1,59 @@
+/**
+ * @fileoverview Zod schemas for eval-datasets HTTP API.
+ */
+
+import { z } from "zod";
+
+/**
+ * Request body for creating one dataset case.
+ */
+export const evalDatasetCreateCaseBodySchema = z.object({
+  caseId: z.string().min(1).optional(),
+  caseSetType: z.enum(["goodcase", "badcase"]),
+  sessionId: z.string().min(1),
+  topicSegmentId: z.string().min(1),
+  topicLabel: z.string().min(1),
+  topicSummary: z.string(),
+  /** 用于计算 `normalizedTranscriptHash` 的原始片段文本。 */
+  transcript: z.string().min(1),
+  baselineVersion: z.string().min(1),
+  baselineCaseScore: z.number(),
+  tags: z.array(z.string()).optional().default([]),
+  duplicateGroupKey: z.string().optional(),
+  /** 为 true 时允许在仅命中近重复（非哈希完全一致）时仍入库。 */
+  allowNearDuplicate: z.boolean().optional().default(false),
+  baseline: z
+    .object({
+      baselineObjectiveScore: z.number(),
+      baselineSubjectiveScore: z.number(),
+      baselineRiskPenaltyScore: z.number(),
+      baselineSignals: z.array(
+        z.object({
+          signalKey: z.string(),
+          score: z.number(),
+          severity: z.string(),
+        }),
+      ),
+      baselineProductVersion: z.string().min(1),
+    })
+    .optional(),
+});
+
+/**
+ * Query for listing dataset cases.
+ */
+export const evalDatasetListCasesQuerySchema = z.object({
+  caseSetType: z.enum(["goodcase", "badcase"]).optional(),
+});
+
+/**
+ * Request body for creating a stratified sample batch.
+ */
+export const evalDatasetCreateSampleBatchBodySchema = z.object({
+  requestedGoodcaseCount: z.number().int().min(0).max(2000),
+  requestedBadcaseCount: z.number().int().min(0).max(2000),
+  seed: z.string().optional(),
+  strategy: z.string().optional(),
+  targetVersion: z.string().optional(),
+  persist: z.boolean().optional().default(true),
+});

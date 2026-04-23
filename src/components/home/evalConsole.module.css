@@ -92,7 +92,35 @@
   max-width: 100%;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.heroTagsLeft {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
+}
+
+.onlineEvalLink {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgb(56 189 248 / 0.45);
+  background: linear-gradient(135deg, rgb(14 165 233 / 0.22), rgb(99 102 241 / 0.2));
+  color: #e0f2fe;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.04em;
+}
+
+.onlineEvalLink:hover {
+  border-color: rgb(125 211 252 / 0.65);
 }
 
 .heroTag {
@@ -781,6 +809,55 @@
 .exportRow {
   display: grid;
   gap: 10px;
+}
+
+.baselineRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 14px;
+}
+
+.baselineLabel {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #8ea0ba;
+  min-width: 200px;
+  flex: 1;
+}
+
+.baselineInput {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgb(71 85 105 / 0.85);
+  background: rgb(2 6 23 / 0.55);
+  color: #f1f5f9;
+  font-size: 13px;
+}
+
+.primaryOutlineButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgb(56 189 248 / 0.5);
+  background: rgb(14 165 233 / 0.12);
+  color: #e0f2fe;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.primaryOutlineButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.baselineHint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.6;
 }
 
 @keyframes spin {

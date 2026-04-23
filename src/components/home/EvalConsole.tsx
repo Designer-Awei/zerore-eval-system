@@ -4,7 +4,8 @@
 
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { previewCsvLines, splitCsvLine } from "@/lib/csv";
 import { inferFormatFromFileName } from "@/parsers";
 import { ChartsPanel } from "@/components/home/ChartsPanel";
@@ -22,6 +23,20 @@ import type {
 } from "@/types/pipeline";
 import styles from "./evalConsole.module.css";
 
+type EvalConsoleRunState = "idle" | "ingesting" | "ready" | "running" | "success" | "error";
+
+type EvalConsoleSessionSnapshot = {
+  fileName: string;
+  format: UploadFormat;
+  ingestResult: IngestResponse | null;
+  evaluateResult: EvaluateResponse | null;
+  runState: EvalConsoleRunState;
+  processStep: number;
+  error: string;
+  notice: string;
+  baselineCustomerId: string;
+};
+
 const PROCESSING_LOGS = [
   "接收原始日志并校验字段完整性",
   "按 session 排序并补全中间字段",
@@ -31,24 +46,75 @@ const PROCESSING_LOGS = [
 ];
 const ALLOWED_EXTENSIONS = new Set(["csv", "json", "txt", "md"]);
 const MAX_UPLOAD_SIZE_MB = 5;
+const EVAL_CONSOLE_SNAPSHOT_KEY = "zerore:evalConsoleSnapshot:v1";
 
 /**
  * Render the main evaluation console.
  * @returns Console page content.
  */
 export function EvalConsole() {
+  const snapshotHydratedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<UploadFormat>("csv");
   const [ingestResult, setIngestResult] = useState<IngestResponse | null>(null);
   const [evaluateResult, setEvaluateResult] = useState<EvaluateResponse | null>(null);
-  const [runState, setRunState] = useState<"idle" | "ingesting" | "ready" | "running" | "success" | "error">(
-    "idle",
-  );
+  const [runState, setRunState] = useState<EvalConsoleRunState>("idle");
   const [dragActive, setDragActive] = useState(false);
   const [processStep, setProcessStep] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [baselineCustomerId, setBaselineCustomerId] = useState("default");
+  const [baselineSaving, setBaselineSaving] = useState(false);
+
+  useEffect(() => {
+    const lastCustomerId = window.localStorage.getItem("zerore:lastCustomerId");
+    if (lastCustomerId) {
+      setBaselineCustomerId(lastCustomerId);
+    }
+
+    const snapshotRaw = window.sessionStorage.getItem(EVAL_CONSOLE_SNAPSHOT_KEY);
+    if (!snapshotRaw) {
+      snapshotHydratedRef.current = true;
+      return;
+    }
+    try {
+      const snapshot = JSON.parse(snapshotRaw) as EvalConsoleSessionSnapshot;
+      setFileName(snapshot.fileName ?? "");
+      setFormat(snapshot.format ?? "csv");
+      setIngestResult(snapshot.ingestResult ?? null);
+      setEvaluateResult(snapshot.evaluateResult ?? null);
+      setRunState(snapshot.runState ?? "idle");
+      setProcessStep(snapshot.processStep ?? 0);
+      setError(snapshot.error ?? "");
+      setNotice(snapshot.notice ?? "");
+      if (snapshot.baselineCustomerId) {
+        setBaselineCustomerId(snapshot.baselineCustomerId);
+      }
+    } catch {
+      window.sessionStorage.removeItem(EVAL_CONSOLE_SNAPSHOT_KEY);
+    } finally {
+      snapshotHydratedRef.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!snapshotHydratedRef.current) {
+      return;
+    }
+    const snapshot: EvalConsoleSessionSnapshot = {
+      fileName,
+      format,
+      ingestResult,
+      evaluateResult,
+      runState,
+      processStep,
+      error,
+      notice,
+      baselineCustomerId,
+    };
+    window.sessionStorage.setItem(EVAL_CONSOLE_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  }, [fileName, format, ingestResult, evaluateResult, runState, processStep, error, notice, baselineCustomerId]);
 
   const previewLines = useMemo(
     () => ingestResult?.previewTop20 ?? previewCsvLines(ingestResult?.canonicalCsv ?? "", 21),
@@ -233,6 +299,41 @@ export function EvalConsole() {
     }
   }
 
+  /**
+   * Persist last successful evaluate + raw rows as a workbench baseline for online replay.
+   */
+  async function handleSaveWorkbenchBaseline() {
+    if (!evaluateResult || !ingestResult?.rawRows.length) {
+      setError("请先完成一次评估后再保存基线。");
+      return;
+    }
+    setBaselineSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/workbench-baselines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: baselineCustomerId.trim(),
+          label: fileName || undefined,
+          sourceFileName: fileName || undefined,
+          evaluate: evaluateResult,
+          rawRows: ingestResult.rawRows,
+        }),
+      });
+      const data = (await response.json()) as { error?: string; detail?: string; runId?: string };
+      if (!response.ok) {
+        throw new Error(data.detail ?? data.error ?? "保存基线失败");
+      }
+      window.localStorage.setItem("zerore:lastCustomerId", baselineCustomerId.trim());
+      setNotice(`已保存工作台基线：customerId=${baselineCustomerId.trim()}，runId=${data.runId ?? evaluateResult.runId}。可前往「在线评测」选择该基线回放。`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "保存基线失败");
+    } finally {
+      setBaselineSaving(false);
+    }
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.pageChrome} aria-hidden="true" />
@@ -246,11 +347,14 @@ export function EvalConsole() {
               MVP 阶段的评估闭环验证。
             </p>
             <div className={styles.heroTagRow}>
-              <span className={styles.heroTag}>状态 · {runStateLabel}</span>
-              <span className={styles.heroTag}>格式 · {format.toUpperCase()}</span>
-              <span className={styles.heroTag}>
-                文件 · {fileName ? fileName : "等待上传"}
-              </span>
+              <div className={styles.heroTagsLeft}>
+                <span className={styles.heroTag}>状态 · {runStateLabel}</span>
+                <span className={styles.heroTag}>格式 · {format.toUpperCase()}</span>
+                <span className={styles.heroTag}>文件 · {fileName ? fileName : "等待上传"}</span>
+              </div>
+              <Link className={styles.onlineEvalLink} href="/online-eval">
+                在线评测
+              </Link>
             </div>
           </div>
           <div className={styles.heroAside}>
@@ -313,7 +417,7 @@ export function EvalConsole() {
           <section className={`${styles.panel} ${styles.panelWide}`}>
             <div className={styles.panelHeader}>
               <div>
-                <h2>标准化预览</h2>
+                <h2>日志预览</h2>
                 <p>展示统一 raw 结构的前 20 行，预览区固定高度并支持横向滚动。</p>
               </div>
               <span className={styles.panelMeta}>{previewRows.length} 行缓存</span>
@@ -409,6 +513,29 @@ export function EvalConsole() {
                   下载 JSON 结果
                 </button>
               </div>
+              <div className={styles.baselineRow}>
+                <label className={styles.baselineLabel}>
+                  客户 ID（保存基线）
+                  <input
+                    className={styles.baselineInput}
+                    value={baselineCustomerId}
+                    onChange={(event) => setBaselineCustomerId(event.target.value)}
+                    placeholder="default"
+                  />
+                </label>
+                <button
+                  className={styles.primaryOutlineButton}
+                  type="button"
+                  disabled={!evaluateResult || baselineSaving}
+                  onClick={() => void handleSaveWorkbenchBaseline()}
+                >
+                  {baselineSaving ? "保存中…" : "保存工作台基线"}
+                </button>
+              </div>
+              <p className={styles.baselineHint}>
+                基线写入 <code>{"mock-chatlog/baselines/<customerId>/"}</code>
+                ，供「在线评测」同源对比；含完整 rawRows 与 evaluate 结果。
+              </p>
             </div>
           </section>
         </section>
@@ -424,7 +551,7 @@ export function EvalConsole() {
  * @returns Human-readable label.
  */
 function getRunStateLabel(
-  runState: "idle" | "ingesting" | "ready" | "running" | "success" | "error",
+  runState: EvalConsoleRunState,
 ): string {
   if (runState === "ingesting") {
     return "日志解析中";
