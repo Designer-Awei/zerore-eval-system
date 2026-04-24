@@ -7,6 +7,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BadCaseCluster } from "@/badcase/types";
+import type {
+  GoldSetAnnotationTaskRecord,
+  GoldSetLabelDraftRecord,
+  GoldSetReviewStatus,
+} from "@/calibration/types";
 import type { DatasetCaseRecord } from "@/eval-datasets/storage/types";
 import styles from "./datasetConsole.module.css";
 
@@ -21,6 +26,38 @@ type CaseListResponse = {
   count: number;
 };
 
+type GoldSetDraftValidation = {
+  caseId: string;
+  taskId?: string;
+  reviewStatus?: GoldSetReviewStatus;
+  importable: boolean;
+  errors: string[];
+  warnings: string[];
+};
+
+type GoldSetTasksResponse = {
+  tasks: GoldSetAnnotationTaskRecord[];
+  drafts: GoldSetLabelDraftRecord[];
+  validations: GoldSetDraftValidation[];
+  stats: {
+    totalTasks: number;
+    approvedImportable: number;
+    blockedApproved: number;
+    statusCounts: Record<string, number>;
+  };
+  error?: string;
+  detail?: string;
+};
+
+const GOLD_SET_VERSION = "v2";
+const REVIEW_STATUS_OPTIONS: GoldSetReviewStatus[] = [
+  "draft",
+  "ready_for_review",
+  "changes_requested",
+  "approved",
+  "imported",
+];
+
 /**
  * Render the dataset browsing console.
  * @returns Dataset page content.
@@ -28,9 +65,19 @@ type CaseListResponse = {
 export function DatasetConsole() {
   const [clusters, setClusters] = useState<BadCaseCluster[]>([]);
   const [cases, setCases] = useState<DatasetCaseRecord[]>([]);
+  const [goldTasks, setGoldTasks] = useState<GoldSetAnnotationTaskRecord[]>([]);
+  const [goldDrafts, setGoldDrafts] = useState<GoldSetLabelDraftRecord[]>([]);
+  const [goldValidations, setGoldValidations] = useState<GoldSetDraftValidation[]>([]);
+  const [goldStats, setGoldStats] = useState<GoldSetTasksResponse["stats"] | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [goldLoading, setGoldLoading] = useState(false);
+  const [goldSaving, setGoldSaving] = useState(false);
+  const [goldImporting, setGoldImporting] = useState(false);
   const [error, setError] = useState("");
+  const [goldError, setGoldError] = useState("");
   const [notice, setNotice] = useState("");
+  const [goldNotice, setGoldNotice] = useState("");
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
 
   const loadData = useCallback(async () => {
@@ -62,9 +109,35 @@ export function DatasetConsole() {
     }
   }, []);
 
+  const loadGoldTasks = useCallback(async () => {
+    setGoldLoading(true);
+    setGoldError("");
+    try {
+      const response = await fetch(`/api/calibration/gold-sets/${GOLD_SET_VERSION}/annotation-tasks`);
+      const data = (await response.json()) as GoldSetTasksResponse;
+      if (!response.ok) {
+        throw new Error(data.detail ?? data.error ?? "加载 gold set 标注任务失败");
+      }
+      setGoldTasks(data.tasks ?? []);
+      setGoldDrafts(data.drafts ?? []);
+      setGoldValidations(data.validations ?? []);
+      setGoldStats(data.stats ?? null);
+      setGoldNotice(`已加载 ${data.tasks?.length ?? 0} 个 ${GOLD_SET_VERSION} 标注任务。`);
+      setSelectedTaskId((current) => current || data.tasks?.[0]?.taskId || "");
+    } catch (requestError) {
+      setGoldError(requestError instanceof Error ? requestError.message : "加载 gold set 标注任务失败");
+    } finally {
+      setGoldLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void loadGoldTasks();
+  }, [loadGoldTasks]);
 
   const scenarioOptions = useMemo(
     () =>
@@ -103,6 +176,99 @@ export function DatasetConsole() {
     ).toFixed(2);
   }, [cases]);
 
+  const selectedTask = useMemo(
+    () => goldTasks.find((item) => item.taskId === selectedTaskId) ?? goldTasks[0] ?? null,
+    [goldTasks, selectedTaskId],
+  );
+
+  const selectedDraft = useMemo(
+    () => goldDrafts.find((item) => item.taskId === selectedTask?.taskId) ?? null,
+    [goldDrafts, selectedTask],
+  );
+
+  const selectedValidation = useMemo(
+    () => goldValidations.find((item) => item.taskId === selectedTask?.taskId) ?? null,
+    [goldValidations, selectedTask],
+  );
+
+  const statusCounts = goldStats?.statusCounts ?? {};
+
+  const updateSelectedDraft = useCallback((updater: (draft: GoldSetLabelDraftRecord) => GoldSetLabelDraftRecord) => {
+    setGoldDrafts((current) =>
+      current.map((item) => {
+        if (item.taskId !== selectedTask?.taskId) {
+          return item;
+        }
+        return updater(item);
+      }),
+    );
+  }, [selectedTask]);
+
+  const saveSelectedDraft = useCallback(async () => {
+    if (!selectedDraft) {
+      return;
+    }
+    setGoldSaving(true);
+    setGoldError("");
+    try {
+      const response = await fetch(
+        `/api/calibration/gold-sets/${selectedDraft.goldSetVersion}/label-drafts/${encodeURIComponent(selectedDraft.taskId)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(selectedDraft),
+        },
+      );
+      const data = (await response.json()) as {
+        draft?: GoldSetLabelDraftRecord;
+        validation?: GoldSetDraftValidation;
+        error?: string;
+        detail?: string;
+      };
+      if (!response.ok || !data.draft || !data.validation) {
+        throw new Error(data.detail ?? data.error ?? "保存 label draft 失败");
+      }
+      const savedDraft = data.draft;
+      const savedValidation = data.validation;
+      setGoldDrafts((current) => current.map((item) => (item.taskId === savedDraft.taskId ? savedDraft : item)));
+      setGoldValidations((current) =>
+        current.map((item) => (item.taskId === savedValidation.taskId ? savedValidation : item)),
+      );
+      setGoldNotice(`已保存 ${savedDraft.caseId} 的 label draft。`);
+      await loadGoldTasks();
+    } catch (requestError) {
+      setGoldError(requestError instanceof Error ? requestError.message : "保存 label draft 失败");
+    } finally {
+      setGoldSaving(false);
+    }
+  }, [loadGoldTasks, selectedDraft]);
+
+  const importApprovedLabels = useCallback(async () => {
+    setGoldImporting(true);
+    setGoldError("");
+    try {
+      const response = await fetch(`/api/calibration/gold-sets/${GOLD_SET_VERSION}/annotation-tasks`, {
+        method: "POST",
+      });
+      const data = (await response.json()) as {
+        result?: { importedCount: number; skippedCount: number; failedCount: number };
+        error?: string;
+        detail?: string;
+      };
+      if (!response.ok || !data.result) {
+        throw new Error(data.detail ?? data.error ?? "导入 approved labels 失败");
+      }
+      setGoldNotice(
+        `导入完成：imported=${data.result.importedCount}，skipped=${data.result.skippedCount}，failed=${data.result.failedCount}。`,
+      );
+      await loadGoldTasks();
+    } catch (requestError) {
+      setGoldError(requestError instanceof Error ? requestError.message : "导入 approved labels 失败");
+    } finally {
+      setGoldImporting(false);
+    }
+  }, [loadGoldTasks]);
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -139,6 +305,11 @@ export function DatasetConsole() {
             <span>Avg Severity</span>
             <strong>{averageSeverity}</strong>
             <small>failureSeverityScore 的平均值</small>
+          </article>
+          <article className={styles.heroCard}>
+            <span>Gold Tasks</span>
+            <strong>{goldStats?.totalTasks ?? goldTasks.length}</strong>
+            <small>{goldStats?.approvedImportable ?? 0} 个可导入 approved label</small>
           </article>
         </section>
 
@@ -177,6 +348,305 @@ export function DatasetConsole() {
                 {tag} · {count}
               </span>
             ))}
+          </div>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2>Gold Set v2 标注任务</h2>
+              <p>把 gold set 扩展变成可分配、可审核、可导入的流程；只有 approved 且校验通过的 draft 会进入 labels.jsonl。</p>
+            </div>
+            <div className={styles.buttonRow}>
+              <button className={styles.secondaryButton} type="button" disabled={goldLoading} onClick={() => void loadGoldTasks()}>
+                {goldLoading ? "刷新中…" : "刷新任务"}
+              </button>
+              <button
+                className={styles.primaryButton}
+                type="button"
+                disabled={goldImporting || !goldStats?.approvedImportable}
+                onClick={() => void importApprovedLabels()}
+              >
+                {goldImporting ? "导入中…" : "导入 approved"}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.goldStats}>
+            {REVIEW_STATUS_OPTIONS.map((status) => (
+              <span className={styles.statusPill} key={status}>
+                {status}: {statusCounts[status] ?? 0}
+              </span>
+            ))}
+            <span className={styles.statusPill}>importable: {goldStats?.approvedImportable ?? 0}</span>
+          </div>
+          {goldError ? <p className={styles.error}>{goldError}</p> : null}
+          {goldNotice ? <p className={styles.notice}>{goldNotice}</p> : null}
+
+          <div className={styles.annotationGrid}>
+            <div className={styles.taskList}>
+              {goldTasks.length > 0 ? (
+                goldTasks.map((task) => {
+                  const validation = goldValidations.find((item) => item.taskId === task.taskId);
+                  const isActive = selectedTask?.taskId === task.taskId;
+                  return (
+                    <button
+                      className={`${styles.taskButton} ${isActive ? styles.taskButtonActive : ""}`}
+                      key={task.taskId}
+                      type="button"
+                      onClick={() => setSelectedTaskId(task.taskId)}
+                    >
+                      <strong>{task.caseId}</strong>
+                      <span>
+                        {task.assignee ?? "unassigned"} · {task.status}
+                      </span>
+                      <small>{validation?.importable ? "ready to import" : `${validation?.errors.length ?? 0} errors`}</small>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className={styles.empty}>当前没有 gold set 标注任务。</div>
+              )}
+            </div>
+
+            {selectedTask && selectedDraft ? (
+              <div className={styles.draftEditor}>
+                <div className={styles.caseHeader}>
+                  <div>
+                    <h3>{selectedTask.caseId}</h3>
+                    <p>
+                      scene={selectedTask.sceneId} · session={selectedTask.sessionId} · reviewer=
+                      {selectedTask.reviewer ?? "--"}
+                    </p>
+                  </div>
+                  <span className={styles.severityBadge}>{selectedValidation?.importable ? "READY" : "DRAFT"}</span>
+                </div>
+
+                <div className={styles.editorGrid}>
+                  <label className={styles.label}>
+                    Review Status
+                    <select
+                      className={styles.select}
+                      value={selectedDraft.reviewStatus}
+                      onChange={(event) =>
+                        updateSelectedDraft((draft) => ({
+                          ...draft,
+                          reviewStatus: event.target.value as GoldSetReviewStatus,
+                        }))
+                      }
+                    >
+                      {REVIEW_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.label}>
+                    Labeler
+                    <input
+                      className={styles.input}
+                      value={selectedDraft.labeler ?? ""}
+                      onChange={(event) => updateSelectedDraft((draft) => ({ ...draft, labeler: event.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.label}>
+                    Reviewer
+                    <input
+                      className={styles.input}
+                      value={selectedDraft.reviewer ?? ""}
+                      onChange={(event) => updateSelectedDraft((draft) => ({ ...draft, reviewer: event.target.value }))}
+                    />
+                  </label>
+                  <label className={styles.label}>
+                    Reviewed At
+                    <input
+                      className={styles.input}
+                      placeholder="2026-04-24T18:00:00+08:00"
+                      value={selectedDraft.reviewedAt ?? ""}
+                      onChange={(event) => updateSelectedDraft((draft) => ({ ...draft, reviewedAt: event.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className={styles.dimensionList}>
+                  {selectedDraft.dimensions.map((dimension, dimensionIndex) => (
+                    <div className={styles.dimensionRow} key={dimension.dimension}>
+                      <label className={styles.label}>
+                        {dimension.dimension}
+                        <input
+                          className={styles.input}
+                          max={5}
+                          min={1}
+                          type="number"
+                          value={dimension.score ?? ""}
+                          onChange={(event) =>
+                            updateSelectedDraft((draft) => ({
+                              ...draft,
+                              dimensions: draft.dimensions.map((item, index) =>
+                                index === dimensionIndex
+                                  ? { ...item, score: event.target.value ? Number(event.target.value) : null }
+                                  : item,
+                              ),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.label}>
+                        Evidence
+                        <input
+                          className={styles.input}
+                          value={dimension.evidence ?? ""}
+                          onChange={(event) =>
+                            updateSelectedDraft((draft) => ({
+                              ...draft,
+                              dimensions: draft.dimensions.map((item, index) =>
+                                index === dimensionIndex ? { ...item, evidence: event.target.value } : item,
+                              ),
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className={styles.editorGrid}>
+                  <label className={styles.label}>
+                    Goal Status
+                    <select
+                      className={styles.select}
+                      value={selectedDraft.goalCompletion.status ?? ""}
+                      onChange={(event) =>
+                        updateSelectedDraft((draft) => ({
+                          ...draft,
+                          goalCompletion: {
+                            ...draft.goalCompletion,
+                            status: event.target.value
+                              ? (event.target.value as GoldSetLabelDraftRecord["goalCompletion"]["status"])
+                              : null,
+                          },
+                        }))
+                      }
+                    >
+                      <option value="">未标注</option>
+                      <option value="achieved">achieved</option>
+                      <option value="partial">partial</option>
+                      <option value="failed">failed</option>
+                      <option value="unclear">unclear</option>
+                    </select>
+                  </label>
+                  <label className={styles.label}>
+                    Goal Score
+                    <input
+                      className={styles.input}
+                      max={5}
+                      min={0}
+                      type="number"
+                      value={selectedDraft.goalCompletion.score ?? ""}
+                      onChange={(event) =>
+                        updateSelectedDraft((draft) => ({
+                          ...draft,
+                          goalCompletion: {
+                            ...draft.goalCompletion,
+                            score: event.target.value ? Number(event.target.value) : null,
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className={styles.label}>
+                    Recovery Status
+                    <select
+                      className={styles.select}
+                      value={selectedDraft.recoveryTrace.status ?? ""}
+                      onChange={(event) =>
+                        updateSelectedDraft((draft) => ({
+                          ...draft,
+                          recoveryTrace: {
+                            ...draft.recoveryTrace,
+                            status: event.target.value
+                              ? (event.target.value as GoldSetLabelDraftRecord["recoveryTrace"]["status"])
+                              : null,
+                          },
+                        }))
+                      }
+                    >
+                      <option value="">未标注</option>
+                      <option value="none">none</option>
+                      <option value="completed">completed</option>
+                      <option value="failed">failed</option>
+                    </select>
+                  </label>
+                  <label className={styles.label}>
+                    Recovery Score
+                    <input
+                      className={styles.input}
+                      max={5}
+                      min={0}
+                      type="number"
+                      value={selectedDraft.recoveryTrace.qualityScore ?? ""}
+                      onChange={(event) =>
+                        updateSelectedDraft((draft) => ({
+                          ...draft,
+                          recoveryTrace: {
+                            ...draft.recoveryTrace,
+                            qualityScore: event.target.value ? Number(event.target.value) : null,
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label className={styles.label}>
+                  Goal Evidence
+                  <textarea
+                    className={styles.textarea}
+                    value={selectedDraft.goalCompletion.evidence.join("\n")}
+                    onChange={(event) =>
+                      updateSelectedDraft((draft) => ({
+                        ...draft,
+                        goalCompletion: {
+                          ...draft.goalCompletion,
+                          evidence: event.target.value.split(/\r?\n/).filter((line) => line.trim().length > 0),
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className={styles.label}>
+                  Recovery Notes
+                  <textarea
+                    className={styles.textarea}
+                    value={selectedDraft.recoveryTrace.notes ?? ""}
+                    onChange={(event) =>
+                      updateSelectedDraft((draft) => ({
+                        ...draft,
+                        recoveryTrace: { ...draft.recoveryTrace, notes: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+
+                {selectedValidation?.errors.length ? (
+                  <div className={styles.validationBox}>
+                    {selectedValidation.errors.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </div>
+                ) : null}
+
+                <pre className={styles.transcript}>{selectedTask.transcriptPreview.join("\n")}</pre>
+                <div className={styles.buttonRow}>
+                  <button className={styles.primaryButton} type="button" disabled={goldSaving} onClick={() => void saveSelectedDraft()}>
+                    {goldSaving ? "保存中…" : "保存 draft"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.empty}>请选择一个标注任务。</div>
+            )}
           </div>
         </section>
 
