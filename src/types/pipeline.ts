@@ -355,6 +355,13 @@ export type EvaluateMeta = {
   generatedAt: string;
   warnings: string[];
   scenarioContext?: ScenarioEvaluateContext;
+  piiRedaction?: {
+    enabled: boolean;
+    redactedRows: number;
+    redactedFields: number;
+    categories: string[];
+  };
+  workspaceId?: string;
 };
 
 /**
@@ -370,6 +377,13 @@ export type IngestResponse = {
     sessions: number;
     rows: number;
     hasTimestamp: boolean;
+    workspaceId?: string;
+    piiRedaction?: {
+      enabled: boolean;
+      redactedRows: number;
+      redactedFields: number;
+      categories: string[];
+    };
   };
   warnings: string[];
 };

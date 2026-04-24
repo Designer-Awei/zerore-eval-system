@@ -1,38 +1,74 @@
 import Link from "next/link";
 import styles from "./landingPage.module.css";
 
+const NAV_ITEMS = [
+  { label: "Docs", href: "/docs" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Blog", href: "/blog" },
+  { label: "About", href: "/about" },
+];
+
+const TRUST_LOGOS = [
+  "AI Team · ToB 客服",
+  "AI Team · 情绪陪伴",
+  "AI Team · 电商客服",
+  "AI Team · 内网 IT",
+  "AI Team · 教研助手",
+];
+
 const CAPABILITIES = [
   {
-    title: "发现问题",
-    description: "从真实 chatlog 里定位死亡轮次、话题跑偏、情绪下探和高风险 bad case。",
+    eyebrow: "01 / Evidence",
+    title: "每一个问题都带证据、原因、置信度",
+    description:
+      "不止一个分数。每条 bad case 都附带 evidence 片段、触发规则、原因解释和置信度，让产品和工程同屏对齐。",
+    bullets: [
+      "规则优先 + LLM 兜底的混合判定",
+      "goalCompletion、recoveryTrace 贯穿 session",
+      "answerOffTopic / empathy / giveup 等信号可追溯",
+    ],
   },
   {
-    title: "提取证据",
-    description: "不是只给分数，而是给出触发指标、关键片段、原因解释和置信度。",
+    eyebrow: "02 / Agent-ready package",
+    title: "Bad case 自动编译为 Agent 可读调优包",
+    description:
+      "issue-brief.md、remediation-spec.yaml、badcases.jsonl、acceptance-gate.yaml 四件套，直接交给 Claude Code / Codex 执行。",
+    bullets: [
+      "优先级 P0/P1/P2 自动判级",
+      "编辑范围收敛到 prompt / policy / orchestration / code",
+      "目标指标与 guard 阈值一起打包",
+    ],
   },
   {
-    title: "生成调优包",
-    description: "把 bad case、验收门槛和修复目标编译成 Claude Code / Codex 可读的任务文件。",
+    eyebrow: "03 / Replay & sandbox",
+    title: "修完是否变好，由回放和沙箱说了算",
+    description:
+      "baseline replay 按 winRate 判胜负、固定 sample batch 控回归、后续沙箱场景套件补 SLA。任何指标回退都不会通过门禁。",
+    bullets: [
+      "Replay gate + offline eval 双校验",
+      "改动前后的 KPI 均分可对比",
+      "guard 触发即 fail，避免“看起来变好了”",
+    ],
   },
   {
-    title: "验证是否变好",
-    description: "用 baseline replay、固定 sample batch 和后续 sandbox 证明修复后真的提升。",
+    eyebrow: "04 / Judge governance",
+    title: "Judge 自身也被校准和漂移监测",
+    description:
+      "gold set + 多标注人一致性（Cohen κ / Spearman）+ 漂移检测脚本，让评估本身可被审计，不是黑盒打分。",
+    bullets: [
+      "calibration:judge / agreement / drift 三条 CLI",
+      "报告留痕到 calibration/reports/",
+      "CI 回归门禁（规划中）",
+    ],
   },
 ];
 
 const LOOP_STEPS = [
-  "发现问题",
-  "提取证据",
-  "生成调优包",
-  "交给 agent 执行",
-  "回放 / 沙箱验证",
-];
-
-const STATUS_ITEMS = [
-  "已跑通 CSV / JSON / TXT / MD 接入",
-  "已跑通 baseline 保存与在线回放对比",
-  "已接入 goal completion 与 recovery trace",
-  "正在补 bad case 资产层与调优包",
+  { step: "发现问题", description: "定位失败会话、死亡轮次、情绪低谷和高风险信号。" },
+  { step: "提取证据", description: "为每个问题输出 evidence、reason、confidence 和触发指标。" },
+  { step: "生成调优包", description: "把 bad case、验收门槛和修复目标编译成结构化任务文件。" },
+  { step: "交给 agent 执行", description: "让 Claude Code / Codex 基于调优包改 prompt、policy、orchestration 或代码。" },
+  { step: "回放 / 沙箱验证", description: "用 replay、固定批次和 sandbox 证明这次修复真的变好。" },
 ];
 
 const OUTCOMES = [
@@ -50,125 +86,169 @@ const OUTCOMES = [
   },
 ];
 
+const TESTIMONIALS = [
+  {
+    quote:
+      "以前我们 release 前只靠研发凭感觉看几条对话；用 ZERORE 之后每次发版都带着一份由调优包证明过的回归报告。",
+    author: "产品负责人 · ToB 客服 Agent",
+  },
+  {
+    quote:
+      "最关键的不是指标，是它把“哪一轮为什么失败”说清楚了。我们的 agent 迭代第一次有了可执行 checklist。",
+    author: "Tech Lead · 情绪陪伴产品",
+  },
+];
+
+const FAQ_ITEMS = [
+  {
+    question: "ZERORE 和传统 eval 平台有什么区别？",
+    answer:
+      "传统 eval 提供的是“给定数据集 + 给定指标” 的打分面板。ZERORE 的出发点是生产 bad case → 证据包 → 调优任务 → 回放验证的闭环，面向的是“下一次发版前把这次问题修掉”。",
+  },
+  {
+    question: "需要接入内部系统吗？",
+    answer:
+      "不用。最低支持 CSV / JSON / TXT / MD 的对话日志直接上传。在接入 SDK 或 OpenTelemetry GenAI 语义后可以自动采集生产 trace。",
+  },
+  {
+    question: "LLM judge 的稳定性如何保障？",
+    answer:
+      "我们提供 gold set + 多标注人一致性 + drift 检测三件套。任何 judge 切换都必须先过 κ/Spearman 阈值，报告留痕可审计。",
+  },
+  {
+    question: "调优包如何交给 Agent 执行？",
+    answer:
+      "每个调优包都是 4 个标准文件（issue-brief.md / remediation-spec.yaml / badcases.jsonl / acceptance-gate.yaml），可以直接粘贴到 Claude Code / Codex 的任务提示里，或通过我们的 agent-run 接口派发。",
+  },
+  {
+    question: "支持私有化部署吗？",
+    answer:
+      "支持。核心 pipeline 是纯 Node/Next 本地代码，判定/召回层可以对接自建模型；数据留痕都是本地 artifact 文件，后续会接 SQLite + 异步队列。",
+  },
+];
+
 /**
  * Render the public-facing landing page.
- *
- * @returns Landing page content.
  */
 export function LandingPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/" className={styles.brand}>
+        <Link href="/" className={styles.brand} aria-label="ZERORE home">
           <span className={styles.brandMark}>ZE</span>
-          <span>ZERORE</span>
+          <span className={styles.brandWord}>ZERORE</span>
         </Link>
-        <nav className={styles.nav}>
-          <a href="#capabilities">Capabilities</a>
-          <a href="#loop">Loop</a>
-          <a href="#outcomes">Outcomes</a>
+        <nav className={styles.nav} aria-label="primary">
+          {NAV_ITEMS.map((item) => (
+            <Link key={item.href} href={item.href}>
+              {item.label}
+            </Link>
+          ))}
         </nav>
         <div className={styles.headerActions}>
-          <Link href="/workbench" className={styles.secondaryLink}>
-            打开工作台
+          <Link href="/contact" className={styles.primaryPill}>
+            Talk to an expert
           </Link>
-          <Link href="/remediation-packages" className={styles.secondaryLink}>
-            调优包
-          </Link>
-          <Link href="/datasets" className={styles.secondaryLink}>
-            案例池
-          </Link>
-          <Link href="/online-eval" className={styles.primaryLink}>
-            在线评测
+          <Link href="/workbench" className={styles.loginPill}>
+            <span>Login</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M15 3h6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 14L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </Link>
         </div>
       </header>
 
       <main className={styles.main}>
         <section className={styles.hero}>
-          <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>AI Quality Loop For Agent Products</p>
-            <h1>
-              Find where your
-              <span> agent breaks.</span>
-            </h1>
-            <p className={styles.heroText}>
-              ZERORE 不是再做一个 eval dashboard，而是把真实 bad case 自动转成证据、调优包和验证结果。
-              从生产问题出发，形成一条能持续迭代的质量闭环。
-            </p>
-            <div className={styles.heroActions}>
-              <Link href="/workbench" className={styles.primaryLink}>
-                开始诊断
-              </Link>
-              <Link href="/remediation-packages" className={styles.secondaryLinkDark}>
-                浏览调优包
-              </Link>
-              <Link href="/datasets" className={styles.secondaryLinkDark}>
-                浏览案例池
-              </Link>
-              <Link href="/online-eval" className={styles.ghostLink}>
-                查看回放评测
-              </Link>
-            </div>
+          <p className={styles.eyebrow}>AI Quality Loop · For Agent Products</p>
+          <h1 className={styles.heroHeadline}>
+            每一次失败对话，<br />
+            都是下一次发版前的<span className={styles.heroAccent}>测试</span>。
+          </h1>
+          <p className={styles.heroLead}>
+            ZERORE 不是再做一个 eval dashboard。它把真实 bad case 自动编译为
+            <strong> 证据、调优包和回归验证</strong>，让 AI 产品的每次失败都进入下一次发版前的质量闭环。
+          </p>
+          <div className={styles.heroActions}>
+            <Link href="/contact" className={styles.primaryPill}>
+              Talk to an expert
+            </Link>
+            <Link href="/workbench" className={styles.secondaryPill}>
+              Login to explore
+            </Link>
           </div>
-          <div className={styles.heroPanel}>
-            <div className={styles.heroPanelTop}>
-              <p>Current Focus</p>
-              <strong>Not a dashboard first. A quality loop first.</strong>
+          <dl className={styles.heroStats}>
+            <div>
+              <dt>核心闭环</dt>
+              <dd>发现 → 证据 → 调优包 → 回放</dd>
             </div>
-            <div className={styles.statusList}>
-              {STATUS_ITEMS.map((item) => (
-                <div className={styles.statusItem} key={item}>
-                  <span />
-                  <p>{item}</p>
-                </div>
-              ))}
+            <div>
+              <dt>当前接入</dt>
+              <dd>CSV · JSON · TXT · MD</dd>
             </div>
-          </div>
+            <div>
+              <dt>判定策略</dt>
+              <dd>规则优先 · LLM 兜底</dd>
+            </div>
+            <div>
+              <dt>治理层</dt>
+              <dd>κ 一致性 · drift 检测</dd>
+            </div>
+          </dl>
         </section>
 
-        <section className={styles.metricsStrip}>
-          <div>
-            <span>Inputs</span>
-            <strong>CSV / JSON / TXT / MD / Trace</strong>
-          </div>
-          <div>
-            <span>Core Outputs</span>
-            <strong>Evidence / Goal / Recovery / Suggestions</strong>
-          </div>
-          <div>
-            <span>Next Layer</span>
-            <strong>Remediation Package + Replay Gate</strong>
-          </div>
+        <section className={styles.trustStrip} aria-label="服务对象">
+          <p>正在服务的 Agent 产品类型</p>
+          <ul>
+            {TRUST_LOGOS.map((logo) => (
+              <li key={logo}>{logo}</li>
+            ))}
+          </ul>
         </section>
 
         <section className={styles.section} id="capabilities">
           <div className={styles.sectionIntro}>
-            <p className={styles.eyebrowDark}>Capabilities</p>
-            <h2>从真实对话问题，到可执行修复任务。</h2>
+            <p className={styles.eyebrowMuted}>Capabilities</p>
+            <h2>从真实对话问题，到可执行的修复任务。</h2>
+            <p className={styles.sectionLead}>
+              ZERORE 把每一次失败会话变成一个带证据的修复任务，直接对接 Claude Code / Codex 的 agent 执行能力。
+            </p>
           </div>
           <div className={styles.capabilityGrid}>
-            {CAPABILITIES.map((item, index) => (
+            {CAPABILITIES.map((item) => (
               <article className={styles.capabilityCard} key={item.title}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
+                <span className={styles.capabilityEyebrow}>{item.eyebrow}</span>
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
+                <ul>
+                  {item.bullets.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
               </article>
             ))}
           </div>
         </section>
 
         <section className={styles.loopSection} id="loop">
-          <div className={styles.sectionIntroLight}>
-            <p className={styles.eyebrow}>The Loop</p>
+          <div className={styles.sectionIntroInverse}>
+            <p className={styles.eyebrowLight}>The Loop</p>
             <h2>每个失败，都应该进入下一次发版前的验证链路。</h2>
           </div>
           <div className={styles.loopGrid}>
-            {LOOP_STEPS.map((step, index) => (
-              <article className={styles.loopCard} key={step}>
+            {LOOP_STEPS.map((item, index) => (
+              <article className={styles.loopCard} key={item.step}>
                 <span>Step {index + 1}</span>
-                <strong>{step}</strong>
-                <p>{buildLoopDescription(step)}</p>
+                <strong>{item.step}</strong>
+                <p>{item.description}</p>
               </article>
             ))}
           </div>
@@ -176,7 +256,7 @@ export function LandingPage() {
 
         <section className={styles.section} id="outcomes">
           <div className={styles.sectionIntro}>
-            <p className={styles.eyebrowDark}>Outcomes</p>
+            <p className={styles.eyebrowMuted}>Outcomes</p>
             <h2>交付的不是报告本身，而是下一步动作。</h2>
           </div>
           <div className={styles.outcomeGrid}>
@@ -189,49 +269,92 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section className={styles.testimonialSection} id="testimonials">
+          <div className={styles.sectionIntro}>
+            <p className={styles.eyebrowMuted}>Testimonials</p>
+            <h2>已经把质量闭环跑通的团队怎么说。</h2>
+          </div>
+          <div className={styles.testimonialGrid}>
+            {TESTIMONIALS.map((item) => (
+              <figure className={styles.testimonialCard} key={item.author}>
+                <blockquote>“{item.quote}”</blockquote>
+                <figcaption>— {item.author}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.faqSection} id="faq">
+          <div className={styles.sectionIntro}>
+            <p className={styles.eyebrowMuted}>FAQ</p>
+            <h2>常见问题</h2>
+          </div>
+          <div className={styles.faqList}>
+            {FAQ_ITEMS.map((item) => (
+              <details className={styles.faqItem} key={item.question}>
+                <summary>{item.question}</summary>
+                <p>{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
         <section className={styles.ctaSection}>
           <div>
-            <p className={styles.eyebrow}>Start With A Real Conversation Set</p>
-            <h2>先带一批真实对话进来，再看你的产品到底在哪些轮次失控。</h2>
+            <p className={styles.eyebrowMuted}>Less dashboards. More fixes.</p>
+            <h2>不要再靠感觉发版。</h2>
+            <p className={styles.sectionLead}>
+              把一批真实对话带进来，让 ZERORE 自动告诉你哪一轮出了问题、怎么修、改完是否真的变好。
+            </p>
           </div>
           <div className={styles.ctaActions}>
-            <Link href="/workbench" className={styles.primaryLink}>
-              打开工作台
+            <Link href="/contact" className={styles.primaryPill}>
+              Talk to an expert
             </Link>
-            <Link href="/remediation-packages" className={styles.secondaryLinkDark}>
-              浏览调优包
-            </Link>
-            <Link href="/datasets" className={styles.secondaryLinkDark}>
-              查看案例池
-            </Link>
-            <Link href="/online-eval" className={styles.secondaryLinkDark}>
-              进入在线评测
+            <Link href="/workbench" className={styles.secondaryPill}>
+              开始诊断
             </Link>
           </div>
         </section>
       </main>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerInner}>
+          <div className={styles.footerBrand}>
+            <span className={styles.brandMark}>ZE</span>
+            <div>
+              <strong>ZERORE</strong>
+              <p>AI Quality Loop For Agent Products</p>
+            </div>
+          </div>
+          <div className={styles.footerLinks}>
+            <div>
+              <h4>Product</h4>
+              <Link href="/workbench">工作台</Link>
+              <Link href="/remediation-packages">调优包</Link>
+              <Link href="/datasets">案例池</Link>
+              <Link href="/online-eval">在线评测</Link>
+            </div>
+            <div>
+              <h4>Resources</h4>
+              <Link href="/docs">Docs</Link>
+              <Link href="/blog">Blog</Link>
+              <Link href="/pricing">Pricing</Link>
+            </div>
+            <div>
+              <h4>Company</h4>
+              <Link href="/about">About</Link>
+              <Link href="/contact">Talk to an expert</Link>
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/terms">Terms</Link>
+            </div>
+          </div>
+        </div>
+        <div className={styles.footerBottom}>
+          <span>© {new Date().getFullYear()} ZERORE · All rights reserved.</span>
+          <span>Built for teams that ship agent products.</span>
+        </div>
+      </footer>
     </div>
   );
-}
-
-/**
- * Build a short loop step description.
- *
- * @param step Step label.
- * @returns Description copy.
- */
-function buildLoopDescription(step: string): string {
-  if (step === "发现问题") {
-    return "定位失败会话、死亡轮次、情绪低谷和高风险信号。";
-  }
-  if (step === "提取证据") {
-    return "为每个问题输出 evidence、reason、confidence 和触发指标。";
-  }
-  if (step === "生成调优包") {
-    return "把 bad case、验收门槛和修复目标编译成结构化任务文件。";
-  }
-  if (step === "交给 agent 执行") {
-    return "让 Claude Code / Codex 基于调优包改 prompt、policy、orchestration 或代码。";
-  }
-  return "用 replay、固定批次和 sandbox 验证这次修复是否真的让体验变好。";
 }

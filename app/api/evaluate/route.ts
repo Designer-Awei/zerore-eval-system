@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getZeroreRequestContext } from "@/auth/context";
+import { redactRawRows } from "@/pii/redaction";
 import { runEvaluatePipeline } from "@/pipeline/evaluateRun";
 import { evaluateRequestSchema } from "@/schemas/api";
 
@@ -9,6 +11,7 @@ import { evaluateRequestSchema } from "@/schemas/api";
  */
 export async function POST(request: Request) {
   try {
+    const context = getZeroreRequestContext(request);
     const parsedBody = evaluateRequestSchema.safeParse(await request.json());
     if (!parsedBody.success) {
       return NextResponse.json(
@@ -17,7 +20,8 @@ export async function POST(request: Request) {
       );
     }
     const body = parsedBody.data;
-    const rawRows = body.rawRows;
+    const redaction = redactRawRows(body.rawRows);
+    const rawRows = redaction.rows;
     const runId = body.runId ?? `run_${Date.now()}`;
     const useLlm = Boolean(body.useLlm);
 
@@ -35,6 +39,13 @@ export async function POST(request: Request) {
       persistArtifact: body.persistArtifact ?? Boolean(body.artifactBaseName),
       artifactBaseName: body.artifactBaseName,
     });
+    response.meta.workspaceId = context.workspaceId;
+    response.meta.piiRedaction = redaction.report;
+    if (redaction.report.redactedFields > 0) {
+      response.meta.warnings.push(
+        `PII 脱敏已处理 ${redaction.report.redactedFields} 处：${redaction.report.categories.join(", ")}。`,
+      );
+    }
 
     console.info(`[EVALUATE] runId=${runId} DONE warnings=${response.meta.warnings.length}`);
     return NextResponse.json(response);

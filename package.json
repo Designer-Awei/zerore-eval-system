@@ -14,7 +14,8 @@
     "calibration:agreement": "node --import tsx calibration/scripts/compute-agreement.mts",
     "calibration:drift": "node --import tsx calibration/scripts/detect-drift.mts",
     "gold:v2:scaffold": "node --import tsx calibration/scripts/scaffold-gold-set-v2.mts",
-    "gold:v2:import": "node --import tsx calibration/scripts/import-gold-labels.mts"
+    "gold:v2:import": "node --import tsx calibration/scripts/import-gold-labels.mts",
+    "gold:v2:expand": "node --import tsx calibration/scripts/expand-gold-from-fixtures.mts"
   },
   "dependencies": {
     "next": "16.2.3",

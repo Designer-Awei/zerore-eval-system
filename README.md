@@ -91,9 +91,19 @@ ZERORE 当前不追求做一个“大而全 eval 平台”，而是优先做：
 
 不包含：
 
-- 登录权限系统
-- 多租户完整隔离系统
-- 生产级任务队列与复杂异步编排
+- 生产级登录权限系统（当前已有 header/dev fallback 的本地 auth/workspace 基础层）
+- 生产级多租户完整隔离系统（当前已有 workspace-aware path / local DB 抽象）
+- 生产级任务队列与复杂异步编排（当前已有本地 file queue 合约）
+
+## 3.1 基础设施进展
+
+当前为了从 MVP 过渡到可商用架构，已经先落了一层可替换基础设施：
+
+- `src/auth/context.ts`：本地 auth/workspace context，支持 `x-zerore-user-id`、`x-zerore-workspace-id`、`x-zerore-role`。
+- `src/pii/redaction.ts`：默认开启的 PII 脱敏，已接入 ingest / evaluate；可用 `PII_REDACTION_ENABLED=false` 关闭。
+- `src/db/*`：workspace 分区的 local JSON database adapter，后续替换 Postgres/Supabase 时保持接口不变。
+- `src/queue/index.ts` 与 `/api/jobs`：本地异步任务队列合约，后续可替换 Redis/BullMQ/Temporal。
+- `calibration/scripts/expand-gold-from-fixtures.mts`：从 fixture chatlog 扩充 gold set draft，当前 `v2` 已扩到 12 条。
 
 ## 3. 技术选型（固定）
 
