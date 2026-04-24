@@ -40,3 +40,12 @@ export const goldSetLabelDraftSchema = z.object({
   reviewedAt: z.string().optional(),
   reviewNotes: z.string().optional(),
 });
+
+/**
+ * Request body for promoting one dataset case into a gold-set candidate.
+ */
+export const goldSetPromoteCandidateSchema = z.object({
+  caseId: z.string().min(1),
+  assignee: z.string().optional(),
+  reviewer: z.string().optional(),
+});

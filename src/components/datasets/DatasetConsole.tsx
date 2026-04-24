@@ -74,6 +74,7 @@ export function DatasetConsole() {
   const [goldLoading, setGoldLoading] = useState(false);
   const [goldSaving, setGoldSaving] = useState(false);
   const [goldImporting, setGoldImporting] = useState(false);
+  const [promotingCaseId, setPromotingCaseId] = useState("");
   const [error, setError] = useState("");
   const [goldError, setGoldError] = useState("");
   const [notice, setNotice] = useState("");
@@ -266,6 +267,38 @@ export function DatasetConsole() {
       setGoldError(requestError instanceof Error ? requestError.message : "导入 approved labels 失败");
     } finally {
       setGoldImporting(false);
+    }
+  }, [loadGoldTasks]);
+
+  const promoteCaseToGoldSet = useCallback(async (caseId: string) => {
+    setPromotingCaseId(caseId);
+    setGoldError("");
+    try {
+      const response = await fetch(`/api/calibration/gold-sets/${GOLD_SET_VERSION}/candidates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId, reviewer: "reviewer" }),
+      });
+      const data = (await response.json()) as {
+        task?: GoldSetAnnotationTaskRecord;
+        alreadyExists?: boolean;
+        error?: string;
+        detail?: string;
+      };
+      if (!response.ok || !data.task) {
+        throw new Error(data.detail ?? data.error ?? "生成 gold candidate 失败");
+      }
+      setGoldNotice(
+        data.alreadyExists
+          ? `${caseId} 已存在于 ${GOLD_SET_VERSION}：${data.task.taskId}`
+          : `已生成 gold candidate：${data.task.taskId}`,
+      );
+      await loadGoldTasks();
+      setSelectedTaskId(data.task.taskId);
+    } catch (requestError) {
+      setGoldError(requestError instanceof Error ? requestError.message : "生成 gold candidate 失败");
+    } finally {
+      setPromotingCaseId("");
     }
   }, [loadGoldTasks]);
 
@@ -699,6 +732,16 @@ export function DatasetConsole() {
                           ))}
                         </div>
                         {item.suggestedAction ? <p className={styles.actionText}>{item.suggestedAction}</p> : null}
+                        <div className={styles.buttonRow}>
+                          <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            disabled={promotingCaseId === item.caseId}
+                            onClick={() => void promoteCaseToGoldSet(item.caseId)}
+                          >
+                            {promotingCaseId === item.caseId ? "生成中…" : "转为 Gold Candidate"}
+                          </button>
+                        </div>
                         {item.transcript ? <pre className={styles.transcript}>{item.transcript}</pre> : null}
                       </article>
                     ))}

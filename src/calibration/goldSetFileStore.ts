@@ -121,6 +121,52 @@ export async function writeGoldSetImportArtifacts(
 }
 
 /**
+ * Append one new case, annotation task and label draft into a gold-set version.
+ * If the case already exists, returns the existing task and draft instead.
+ *
+ * @param version Gold-set version.
+ * @param candidate Candidate case, task and draft.
+ * @returns Persisted records and duplicate flag.
+ */
+export async function appendGoldSetCandidate(version: string, candidate: {
+  caseRecord: GoldSetCaseRecord;
+  task: GoldSetAnnotationTaskRecord;
+  draft: GoldSetLabelDraftRecord;
+}): Promise<{
+  caseRecord: GoldSetCaseRecord;
+  task: GoldSetAnnotationTaskRecord;
+  draft: GoldSetLabelDraftRecord;
+  alreadyExists: boolean;
+}> {
+  const [cases, tasks, drafts] = await Promise.all([
+    readGoldSetCases(version),
+    readGoldSetAnnotationTasks(version),
+    readGoldSetLabelDrafts(version),
+  ]);
+  const existingCase = cases.find((item) => item.caseId === candidate.caseRecord.caseId);
+  if (existingCase) {
+    const existingTask = tasks.find((item) => item.caseId === existingCase.caseId) ?? candidate.task;
+    const existingDraft = drafts.find((item) => item.caseId === existingCase.caseId) ?? candidate.draft;
+    return {
+      caseRecord: existingCase,
+      task: existingTask,
+      draft: existingDraft,
+      alreadyExists: true,
+    };
+  }
+
+  const { directory } = resolveGoldSetVersionDirectory(version);
+  await writeJsonlFile(path.join(directory, "cases.jsonl"), [...cases, candidate.caseRecord]);
+  await writeGoldSetAnnotationTasks(version, [...tasks, candidate.task]);
+  await saveGoldSetLabelDraft(version, candidate.draft);
+
+  return {
+    ...candidate,
+    alreadyExists: false,
+  };
+}
+
+/**
  * Resolve the draft JSON file for one task.
  *
  * @param version Gold-set version.
