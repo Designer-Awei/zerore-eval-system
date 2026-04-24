@@ -4,6 +4,22 @@ import { createDatasetStore } from "@/eval-datasets/storage";
 import { evalDatasetCreateSampleBatchBodySchema } from "@/schemas/eval-datasets";
 
 /**
+ * List saved sample batches.
+ *
+ * @returns Sample batch list.
+ */
+export async function GET() {
+  try {
+    const store = createDatasetStore();
+    const sampleBatches = await store.listSampleBatches();
+    return NextResponse.json({ sampleBatches, count: sampleBatches.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: "读取 sample batch 列表失败。", detail: message }, { status: 500 });
+  }
+}
+
+/**
  * Create one stratified sample batch and persist by default.
  * @param request Incoming HTTP request.
  */

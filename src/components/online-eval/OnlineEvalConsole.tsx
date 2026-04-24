@@ -153,9 +153,17 @@ export function OnlineEvalConsole() {
               选择基线后执行在线回放评测，完成后自动输出与基线的多指标对比结果。
             </p>
           </div>
-          <Link className={styles.navLink} href="/">
-            ← 返回工作台
-          </Link>
+          <div className={styles.rowActions}>
+            <Link className={styles.navLink} href="/remediation-packages">
+              调优包
+            </Link>
+            <Link className={styles.navLink} href="/datasets">
+              案例池
+            </Link>
+            <Link className={styles.navLink} href="/workbench">
+              ← 返回工作台
+            </Link>
+          </div>
         </header>
 
         <section className={styles.panel}>

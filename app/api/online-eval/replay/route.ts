@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { runEvaluatePipeline } from "@/pipeline/evaluateRun";
 import { replayAssistantRowsWithHttpApi, resolveReplyEndpoint } from "@/online-eval/replayAssistant";
-import { readWorkbenchBaseline } from "@/workbench/baseline-file-store";
+import { createWorkbenchBaselineStore } from "@/workbench";
 import { onlineReplayEvaluateBodySchema } from "@/schemas/online-eval";
 import type { EvaluateResponse } from "@/types/pipeline";
 
@@ -20,7 +20,8 @@ export async function POST(request: Request) {
     let rawRows = body.rawRows;
     let baselineEvaluate: EvaluateResponse | undefined;
     if (body.baselineRef) {
-      const snapshot = await readWorkbenchBaseline(body.baselineRef.customerId, body.baselineRef.runId);
+      const store = createWorkbenchBaselineStore();
+      const snapshot = await store.read(body.baselineRef.customerId, body.baselineRef.runId);
       if (!snapshot) {
         return NextResponse.json({ error: "未找到基线快照，请检查 customerId 与 runId。" }, { status: 404 });
       }
@@ -43,9 +44,11 @@ export async function POST(request: Request) {
     });
 
     const runId = body.runId ?? `online_${Date.now()}`;
+    const scenarioId = body.scenarioId ?? baselineEvaluate?.scenarioEvaluation?.scenarioId;
     const evaluate = await runEvaluatePipeline(replayedRows, {
       useLlm: body.useLlm ?? true,
       runId,
+      scenarioId,
     });
 
     return NextResponse.json({

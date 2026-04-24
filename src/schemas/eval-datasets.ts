@@ -57,3 +57,48 @@ export const evalDatasetCreateSampleBatchBodySchema = z.object({
   targetVersion: z.string().optional(),
   persist: z.boolean().optional().default(true),
 });
+
+/**
+ * Request body for harvesting extracted bad cases into eval-datasets.
+ */
+export const evalDatasetHarvestBadcasesBodySchema = z.object({
+  baselineVersion: z.string().optional(),
+  allowNearDuplicate: z.boolean().optional().default(true),
+  evaluate: z.object({
+    runId: z.string().min(1),
+    subjectiveMetrics: z.object({
+      signals: z.array(
+        z.object({
+          signalKey: z.string().min(1),
+          score: z.number(),
+          severity: z.string().min(1),
+          evidenceTurnRange: z.string().min(1),
+        }),
+      ),
+    }),
+    badCaseAssets: z.array(
+      z.object({
+        caseKey: z.string().min(1),
+        sessionId: z.string().min(1),
+        title: z.string().min(1),
+        severityScore: z.number(),
+        normalizedTranscriptHash: z.string().min(1),
+        duplicateGroupKey: z.string().min(1),
+        topicSegmentId: z.string().min(1),
+        topicLabel: z.string().min(1),
+        topicSummary: z.string(),
+        tags: z.array(z.string()).default([]),
+        transcript: z.string().min(1),
+        evidence: z.array(
+          z.object({
+            turnIndex: z.number().int(),
+            role: z.enum(["user", "assistant", "system"]),
+            content: z.string(),
+          }),
+        ),
+        suggestedAction: z.string(),
+        sourceRunId: z.string().min(1),
+      }),
+    ),
+  }),
+});

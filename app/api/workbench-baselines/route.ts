@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { saveWorkbenchBaseline } from "@/workbench/baseline-file-store";
+import { createWorkbenchBaselineStore } from "@/workbench";
 import type { WorkbenchBaselineSnapshot } from "@/workbench/types";
 import { workbenchBaselineSaveSchema } from "@/schemas/workbench";
 import type { EvaluateResponse } from "@/types/pipeline";
@@ -34,7 +34,8 @@ export async function POST(request: Request) {
       rawRows: body.rawRows,
     };
 
-    await saveWorkbenchBaseline(snapshot);
+    const store = createWorkbenchBaselineStore();
+    await store.save(snapshot);
     return NextResponse.json({
       ok: true,
       customerId: snapshot.customerId,

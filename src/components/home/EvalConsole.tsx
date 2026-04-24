@@ -6,15 +6,22 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { BadCasePanel } from "@/components/home/BadCasePanel";
 import { previewCsvLines, splitCsvLine } from "@/lib/csv";
 import { inferFormatFromFileName } from "@/parsers";
 import { ChartsPanel } from "@/components/home/ChartsPanel";
 import { FeatherIcon } from "@/components/home/FeatherIcon";
+import { GoalCompletionPanel } from "@/components/home/GoalCompletionPanel";
 import { PreviewTable } from "@/components/home/PreviewTable";
+import { RemediationPackagePanel } from "@/components/home/RemediationPackagePanel";
+import { RecoveryTracePanel } from "@/components/home/RecoveryTracePanel";
+import { ScenarioKpiPanel } from "@/components/home/ScenarioKpiPanel";
 import { StatusPanel } from "@/components/home/StatusPanel";
 import { SuggestionPanel } from "@/components/home/SuggestionPanel";
 import { SummaryGrid } from "@/components/home/SummaryGrid";
 import { UploadDropzone } from "@/components/home/UploadDropzone";
+import type { RemediationPackageSnapshot } from "@/remediation";
+import { SCENARIO_OPTIONS } from "@/scenarios";
 import type {
   EvaluateResponse,
   IngestResponse,
@@ -35,13 +42,17 @@ type EvalConsoleSessionSnapshot = {
   error: string;
   notice: string;
   baselineCustomerId: string;
+  selectedScenarioId: string;
+  scenarioOnboardingAnswers: Record<string, string>;
+  remediationPackage: RemediationPackageSnapshot | null;
 };
 
 const PROCESSING_LOGS = [
   "接收原始日志并校验字段完整性",
   "按 session 排序并补全中间字段",
-  "计算客观指标与标准化摘要",
-  "生成图表载荷与策略建议",
+  "计算客观指标、目标达成与恢复摘要",
+  "执行业务 KPI 映射与证据聚合",
+  "生成图表载荷、证据与策略建议",
   "组装本次评估交付结果",
 ];
 const ALLOWED_EXTENSIONS = new Set(["csv", "json", "txt", "md"]);
@@ -66,6 +77,11 @@ export function EvalConsole() {
   const [notice, setNotice] = useState("");
   const [baselineCustomerId, setBaselineCustomerId] = useState("default");
   const [baselineSaving, setBaselineSaving] = useState(false);
+  const [badCaseHarvesting, setBadCaseHarvesting] = useState(false);
+  const [remediationGenerating, setRemediationGenerating] = useState(false);
+  const [selectedScenarioId, setSelectedScenarioId] = useState("");
+  const [scenarioOnboardingAnswers, setScenarioOnboardingAnswers] = useState<Record<string, string>>({});
+  const [remediationPackage, setRemediationPackage] = useState<RemediationPackageSnapshot | null>(null);
 
   useEffect(() => {
     const lastCustomerId = window.localStorage.getItem("zerore:lastCustomerId");
@@ -91,6 +107,9 @@ export function EvalConsole() {
       if (snapshot.baselineCustomerId) {
         setBaselineCustomerId(snapshot.baselineCustomerId);
       }
+      setSelectedScenarioId(snapshot.selectedScenarioId ?? "");
+      setScenarioOnboardingAnswers(snapshot.scenarioOnboardingAnswers ?? {});
+      setRemediationPackage(snapshot.remediationPackage ?? null);
     } catch {
       window.sessionStorage.removeItem(EVAL_CONSOLE_SNAPSHOT_KEY);
     } finally {
@@ -112,9 +131,12 @@ export function EvalConsole() {
       error,
       notice,
       baselineCustomerId,
+      selectedScenarioId,
+      scenarioOnboardingAnswers,
+      remediationPackage,
     };
     window.sessionStorage.setItem(EVAL_CONSOLE_SNAPSHOT_KEY, JSON.stringify(snapshot));
-  }, [fileName, format, ingestResult, evaluateResult, runState, processStep, error, notice, baselineCustomerId]);
+  }, [fileName, format, ingestResult, evaluateResult, runState, processStep, error, notice, baselineCustomerId, selectedScenarioId, scenarioOnboardingAnswers, remediationPackage]);
 
   const previewLines = useMemo(
     () => ingestResult?.previewTop20 ?? previewCsvLines(ingestResult?.canonicalCsv ?? "", 21),
@@ -135,6 +157,10 @@ export function EvalConsole() {
         { key: "responseGap", label: "平均响应间隔", value: "--", hint: "等待评估执行" },
         { key: "topicSwitch", label: "话题切换率", value: "--", hint: "等待评估执行" },
         { key: "empathy", label: "共情得分", value: "--", hint: "等待主观评估" },
+        { key: "goalCompletion", label: "目标达成率", value: "--", hint: "等待 goal completion 评估" },
+        { key: "businessKpi", label: "业务 KPI", value: "--", hint: "等待场景映射" },
+        { key: "badCaseCount", label: "Bad Case", value: "--", hint: "等待失败案例提取" },
+        { key: "recoveryTrace", label: "恢复轨迹", value: "--", hint: "等待 recovery trace 识别" },
       ],
     [evaluateResult],
   );
@@ -167,6 +193,12 @@ export function EvalConsole() {
       hint: warnings.length ? "本次结果包含降级说明" : "当前链路无降级告警",
     },
   ];
+  const selectedScenarioOption = SCENARIO_OPTIONS.find((item) => item.scenarioId === selectedScenarioId);
+  const selectedScenarioLabel = selectedScenarioOption?.displayName ?? "通用评估";
+  const activeOnboardingQuestions = selectedScenarioOption?.onboardingQuestions ?? [];
+  const answeredOnboardingCount = activeOnboardingQuestions.filter(
+    (item) => scenarioOnboardingAnswers[item.id]?.trim(),
+  ).length;
 
   /**
    * Parse and upload one selected file.
@@ -191,6 +223,7 @@ export function EvalConsole() {
       setNotice("");
       setEvaluateResult(null);
       setIngestResult(null);
+      setRemediationPackage(null);
       setFileName(file.name);
       const inferred = inferFormatFromFileName(file.name);
       setFormat(inferred);
@@ -268,6 +301,7 @@ export function EvalConsole() {
     setError("");
     setNotice("");
     setProcessStep(0);
+    setRemediationPackage(null);
 
     const timer = window.setInterval(() => {
       step = Math.min(PROCESSING_LOGS.length - 1, step + 1);
@@ -281,6 +315,15 @@ export function EvalConsole() {
         body: JSON.stringify({
           rawRows: ingestResult.rawRows,
           useLlm: true,
+          scenarioId: selectedScenarioId || undefined,
+          scenarioContext: selectedScenarioId
+            ? {
+                onboardingAnswers: pickActiveOnboardingAnswers(
+                  scenarioOnboardingAnswers,
+                  activeOnboardingQuestions.map((item) => item.id),
+                ),
+              }
+            : undefined,
         }),
       });
       const result = (await response.json()) as Partial<EvaluateResponse> & { error?: string };
@@ -290,13 +333,37 @@ export function EvalConsole() {
       setEvaluateResult(result as EvaluateResponse);
       setRunState("success");
       setProcessStep(PROCESSING_LOGS.length - 1);
-      setNotice("评估完成，已生成图表、策略与中间产物。");
+      setNotice("评估完成，已生成图表、业务 KPI、策略与中间产物。");
     } catch (requestError) {
       setRunState("error");
       setError(requestError instanceof Error ? requestError.message : "评估执行失败");
     } finally {
       window.clearInterval(timer);
     }
+  }
+
+  /**
+   * Update the selected scenario and keep only answers that belong to it.
+   * @param nextScenarioId Selected scenario id.
+   */
+  function handleScenarioChange(nextScenarioId: string) {
+    setSelectedScenarioId(nextScenarioId);
+    const nextQuestionIds =
+      SCENARIO_OPTIONS.find((item) => item.scenarioId === nextScenarioId)?.onboardingQuestions.map((item) => item.id) ??
+      [];
+    setScenarioOnboardingAnswers((current) => pickActiveOnboardingAnswers(current, nextQuestionIds));
+  }
+
+  /**
+   * Update one onboarding answer.
+   * @param questionId Question identifier.
+   * @param value Answer text.
+   */
+  function handleOnboardingAnswerChange(questionId: string, value: string) {
+    setScenarioOnboardingAnswers((current) => ({
+      ...current,
+      [questionId]: value,
+    }));
   }
 
   /**
@@ -334,6 +401,98 @@ export function EvalConsole() {
     }
   }
 
+  /**
+   * Persist extracted bad case assets into the eval-datasets badcase pool.
+   */
+  async function handleHarvestBadCases() {
+    if (!evaluateResult?.badCaseAssets.length) {
+      setError("当前没有可沉淀的 bad case。");
+      return;
+    }
+    setBadCaseHarvesting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/eval-datasets/harvest-badcases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baselineVersion: evaluateResult.runId,
+          allowNearDuplicate: true,
+          evaluate: evaluateResult,
+        }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        detail?: string;
+        savedCount?: number;
+        skippedCount?: number;
+      };
+      if (!response.ok) {
+        throw new Error(data.detail ?? data.error ?? "沉淀 bad case 失败");
+      }
+      setNotice(`已沉淀 bad case：新增 ${data.savedCount ?? 0} 条，跳过 ${data.skippedCount ?? 0} 条重复案例。`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "沉淀 bad case 失败");
+    } finally {
+      setBadCaseHarvesting(false);
+    }
+  }
+
+  /**
+   * Build and persist an agent-readable remediation package from the current evaluation result.
+   */
+  async function handleGenerateRemediationPackage() {
+    if (!evaluateResult?.badCaseAssets.length) {
+      setError("当前没有足够的 bad case 用于生成调优包。");
+      return;
+    }
+    setRemediationGenerating(true);
+    setError("");
+    try {
+      const response = await fetch("/api/remediation-packages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceFileName: fileName || undefined,
+          baselineCustomerId: baselineCustomerId.trim() || undefined,
+          evaluate: {
+            runId: evaluateResult.runId,
+            objectiveMetrics: {
+              avgResponseGapSec: evaluateResult.objectiveMetrics.avgResponseGapSec,
+              topicSwitchRate: evaluateResult.objectiveMetrics.topicSwitchRate,
+              userQuestionRepeatRate: evaluateResult.objectiveMetrics.userQuestionRepeatRate,
+              agentResolutionSignalRate: evaluateResult.objectiveMetrics.agentResolutionSignalRate,
+              escalationKeywordHitRate: evaluateResult.objectiveMetrics.escalationKeywordHitRate,
+            },
+            subjectiveMetrics: {
+              dimensions: evaluateResult.subjectiveMetrics.dimensions,
+              signals: evaluateResult.subjectiveMetrics.signals,
+              goalCompletions: evaluateResult.subjectiveMetrics.goalCompletions,
+              recoveryTraces: evaluateResult.subjectiveMetrics.recoveryTraces,
+            },
+            scenarioEvaluation: evaluateResult.scenarioEvaluation,
+            badCaseAssets: evaluateResult.badCaseAssets,
+            suggestions: evaluateResult.suggestions,
+          },
+        }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        detail?: string;
+        package?: RemediationPackageSnapshot;
+      };
+      if (!response.ok || !data.package) {
+        throw new Error(data.detail ?? data.error ?? "生成调优包失败");
+      }
+      setRemediationPackage(data.package);
+      setNotice(`已生成调优包 ${data.package.packageId}，可直接复制文件内容交给 Claude Code / Codex。`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "生成调优包失败");
+    } finally {
+      setRemediationGenerating(false);
+    }
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.pageChrome} aria-hidden="true" />
@@ -350,11 +509,23 @@ export function EvalConsole() {
               <div className={styles.heroTagsLeft}>
                 <span className={styles.heroTag}>状态 · {runStateLabel}</span>
                 <span className={styles.heroTag}>格式 · {format.toUpperCase()}</span>
+                <span className={styles.heroTag}>场景 · {selectedScenarioLabel}</span>
                 <span className={styles.heroTag}>文件 · {fileName ? fileName : "等待上传"}</span>
               </div>
-              <Link className={styles.onlineEvalLink} href="/online-eval">
-                在线评测
-              </Link>
+              <div className={styles.heroActionLinks}>
+                <Link className={styles.secondaryNavLink} href="/">
+                  产品首页
+                </Link>
+                <Link className={styles.secondaryNavLink} href="/datasets">
+                  案例池
+                </Link>
+                <Link className={styles.secondaryNavLink} href="/remediation-packages">
+                  调优包
+                </Link>
+                <Link className={styles.onlineEvalLink} href="/online-eval">
+                  在线评测
+                </Link>
+              </div>
             </div>
           </div>
           <div className={styles.heroAside}>
@@ -398,6 +569,48 @@ export function EvalConsole() {
                 <span>{fileName ? `已上传：${fileName}` : "尚未上传文件"}</span>
                 <span>{ingestResult ? `${ingestResult.ingestMeta.rows} 条消息` : "等待日志接入"}</span>
               </div>
+              <div className={styles.controlRow}>
+                <label className={styles.controlLabel}>
+                  业务场景
+                  <select
+                    className={styles.controlSelect}
+                    value={selectedScenarioId}
+                    onChange={(event) => handleScenarioChange(event.target.value)}
+                  >
+                    <option value="">通用评估（不映射 KPI）</option>
+                    {SCENARIO_OPTIONS.map((item) => (
+                      <option key={item.scenarioId} value={item.scenarioId}>
+                        {item.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {activeOnboardingQuestions.length > 0 ? (
+                <div className={styles.onboardingBox}>
+                  <div className={styles.onboardingHeader}>
+                    <div>
+                      <strong>场景 Onboarding</strong>
+                      <span>
+                        {answeredOnboardingCount}/{activeOnboardingQuestions.length} 已填写
+                      </span>
+                    </div>
+                    <span>{selectedScenarioLabel}</span>
+                  </div>
+                  <div className={styles.onboardingGrid}>
+                    {activeOnboardingQuestions.map((item) => (
+                      <label className={styles.onboardingField} key={item.id}>
+                        <span>{item.question}</span>
+                        <input
+                          value={scenarioOnboardingAnswers[item.id] ?? ""}
+                          onChange={(event) => handleOnboardingAnswerChange(item.id, event.target.value)}
+                          placeholder="填写该客户或数据集的实际情况"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {error ? <p className={styles.error}>{error}</p> : null}
               {notice ? <p className={styles.notice}>{notice}</p> : null}
             </div>
@@ -441,6 +654,66 @@ export function EvalConsole() {
             />
           </section>
 
+          <section className={`${styles.panel} ${styles.panelWide}`}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>业务 KPI 映射</h2>
+                <p>基于场景模板把通用评估指标翻译成业务可读的 KPI 分与证据。</p>
+              </div>
+              <span className={styles.panelMeta}>
+                {evaluateResult?.scenarioEvaluation?.displayName ?? selectedScenarioLabel}
+              </span>
+            </div>
+            <ScenarioKpiPanel evaluation={evaluateResult?.scenarioEvaluation ?? null} />
+          </section>
+
+          <section className={`${styles.panel} ${styles.panelCompact}`}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Bad Case 池</h2>
+                <p>把失败 session 编译成可复用案例，并一键沉淀到 eval-datasets。</p>
+              </div>
+              <span className={styles.panelMeta}>{evaluateResult?.badCaseAssets.length ?? 0} 条</span>
+            </div>
+            <BadCasePanel items={evaluateResult?.badCaseAssets ?? []} />
+            <div className={styles.baselineRow}>
+              <button
+                className={styles.primaryOutlineButton}
+                type="button"
+                disabled={!evaluateResult?.badCaseAssets.length || badCaseHarvesting}
+                onClick={() => void handleHarvestBadCases()}
+              >
+                {badCaseHarvesting ? "沉淀中…" : "沉淀到案例池"}
+              </button>
+            </div>
+          </section>
+
+          <section className={`${styles.panel} ${styles.panelCompact}`}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>目标达成</h2>
+                <p>按 session 判断用户初始意图是否达成，并展示达成证据与未达成原因。</p>
+              </div>
+              <span className={styles.panelMeta}>
+                {evaluateResult?.subjectiveMetrics.goalCompletions.length ?? 0} 条
+              </span>
+            </div>
+            <GoalCompletionPanel items={evaluateResult?.subjectiveMetrics.goalCompletions ?? []} />
+          </section>
+
+          <section className={`${styles.panel} ${styles.panelWide}`}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>恢复轨迹</h2>
+                <p>识别失败后是否被及时修复，并沉淀可复用的恢复策略。</p>
+              </div>
+              <span className={styles.panelMeta}>
+                {evaluateResult?.subjectiveMetrics.recoveryTraces.filter((item) => item.status !== "none").length ?? 0} 条
+              </span>
+            </div>
+            <RecoveryTracePanel items={evaluateResult?.subjectiveMetrics.recoveryTraces ?? []} />
+          </section>
+
           <section className={`${styles.panel} ${styles.panelFull}`}>
             <div className={styles.panelHeader}>
               <div>
@@ -461,6 +734,22 @@ export function EvalConsole() {
               <span className={styles.panelMeta}>ACTIONABLE</span>
             </div>
             <SuggestionPanel suggestions={evaluateResult?.suggestions ?? []} />
+          </section>
+
+          <section className={`${styles.panel} ${styles.panelWide}`}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>调优包</h2>
+                <p>把问题、证据、验收门槛编译成 agent-readable 文件，可直接交给 Claude Code / Codex 执行。</p>
+              </div>
+              <span className={styles.panelMeta}>{remediationPackage?.packageId ?? "REMEDIATION"}</span>
+            </div>
+            <RemediationPackagePanel
+              packageSnapshot={remediationPackage}
+              loading={remediationGenerating}
+              canGenerate={Boolean(evaluateResult?.badCaseAssets.length)}
+              onGenerate={() => void handleGenerateRemediationPackage()}
+            />
           </section>
 
           <section className={`${styles.panel} ${styles.panelCompact}`}>
@@ -569,6 +858,24 @@ function getRunStateLabel(
     return "异常";
   }
   return "未开始";
+}
+
+/**
+ * Keep only onboarding answers that belong to the active scenario.
+ * @param answers Current answer map.
+ * @param activeQuestionIds Active scenario question ids.
+ * @returns Pruned answer map.
+ */
+function pickActiveOnboardingAnswers(
+  answers: Record<string, string>,
+  activeQuestionIds: string[],
+): Record<string, string> {
+  const activeSet = new Set(activeQuestionIds);
+  return Object.fromEntries(
+    Object.entries(answers)
+      .filter(([questionId]) => activeSet.has(questionId))
+      .map(([questionId, value]) => [questionId, value.trim()]),
+  );
 }
 
 /**

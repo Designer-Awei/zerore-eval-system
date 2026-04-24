@@ -1,7 +1,16 @@
 # ZERORE Eval MVP
 
-基于 Next.js 的对话评估 MVP 项目，用 1 天打通最小闭环：
-前端接收数据 -> 后端解析 -> 评估计算（客观 + 主观）-> 返回交付产物（图表 + 优化建议）。
+基于 `Next.js + TypeScript` 的 AI 对话质量工作台。当前版本已经跑通：
+
+前端接收数据 -> 后端解析 -> 评估计算（客观 + 主观） -> 输出图表与建议 -> 保存基线 -> 在线回放对比。
+
+下一阶段不再把目标定义为“更多图表”，而是升级为一条完整的质量闭环：
+
+1. 发现问题
+2. 提取证据
+3. 生成调优包
+4. 交给 agent 执行
+5. 回放 / 沙箱验证
 
 ## 0. 当前进度
 
@@ -22,9 +31,18 @@
   - mock raw chatlog 可产出主观评分与证据片段
   - 指定 raw 数据可补全为 enriched CSV 并写入 `mock-chatlog/enriched-data`
 - 下一阶段待增强：
-  - 让 signal layer 与建议触发器形成更细粒度联动
-  - 增加更多 session 级客观指标与批量评估能力
-  - 引入业务模板化权重与情绪评分参数配置
+  - 将“问题发现”升级为“问题 -> 证据 -> 调优包 -> 验证”的闭环
+  - 把 bad case 自动沉淀成可复用案例资产与回归集
+  - 让调优结果可直接编译成 `Claude Code / Codex` 可执行的任务包
+  - 在真实回放之外补上沙箱 / 仿真验证层
+
+## 0.1 当前产品定位
+
+ZERORE 当前不追求做一个“大而全 eval 平台”，而是优先做：
+
+- 一个能接入真实 `chatlog / trace` 的质量诊断工作台；
+- 一个能把典型 bad case 沉淀为回归资产的质量资产层；
+- 一个能输出 agent-readable 调优包并验证修复效果的质量操作层。
 
 ## 1. MVP 目标
 
@@ -35,6 +53,28 @@
 - 计算客观指标（规则/算法）
 - 计算主观指标（LLM Judge + 隐式推断）
 - 生成可展示交付物（图表数据 + 优化建议）
+
+## 1.1 下一阶段目标（五步闭环）
+
+在现有 MVP 之上，下一阶段要补齐的是“调优与验证”，而不是单纯扩展指标数量。
+
+- `Step 1 · 发现问题`
+  - 在线 / 离线评测后定位失败会话、死亡轮次、风险聚类和关键 turning point。
+- `Step 2 · 提取证据`
+  - 为每个问题输出证据片段、触发指标、原因解释和置信度。
+- `Step 3 · 生成调优包`
+  - 将 bad case、修复目标、约束条件和验收门槛编译成 agent-readable 文档。
+- `Step 4 · 交给 agent 执行`
+  - 将调优包直接交给 `Claude Code / Codex` 等 coding agent 执行 prompt / policy / code 修改。
+- `Step 5 · 回放 / 沙箱验证`
+  - 用 baseline replay、固定 sample batch 和后续 sandbox 套件验证“是否真的变好”。
+
+建议把新增交付物固定为以下几类：
+
+- `issue-brief.md`：问题概述、影响、证据、优先级。
+- `remediation-spec.yaml`：结构化调优目标、修改层、约束条件。
+- `badcases.jsonl`：失败样本与期望行为。
+- `acceptance-gate.yaml`：回放 / 离线 / 沙箱的验收阈值。
 
 ## 2. 一天内交付范围
 
@@ -70,7 +110,8 @@
 ```txt
 .
 ├─ app/
-│  ├─ page.tsx                                  # 首页壳层
+│  ├─ page.tsx                                  # 产品 landing page
+│  ├─ workbench/page.tsx                        # 评估工作台
 │  ├─ online-eval/page.tsx                      # 交互效果在线评测页
 │  └─ api/
 │     ├─ ingest/route.ts                        # 数据接收与格式识别
@@ -111,7 +152,9 @@
 │  │  ├─ sample-batch.ts                       # 分层抽样逻辑
 │  │  └─ case-transcript-hash.ts               # 去重 hash 逻辑
 │  ├─ workbench/
-│  │  └─ baseline-file-store.ts                # 工作台基线存储
+│  │  ├─ baseline-store.ts                     # 工作台基线存储接口
+│  │  ├─ baseline-file-store.ts                # 文件系统实现
+│  │  └─ index.ts                              # store factory
 │  ├─ online-eval/
 │  │  └─ replayAssistant.ts                    # 在线回放替换 assistant
 │  ├─ components/
@@ -129,7 +172,8 @@
 ├─ eval-system-概述/
 │  ├─ 1-评测集构建.md
 │  ├─ 2-基线构建与在线评测联动.md
-│  └─ 3-评测集构建与在线评测实现路径（业务版）.md
+│  ├─ 3-评测集构建与在线评测实现路径（业务版）.md
+│  └─ 4-五步质量闭环与工程落地.md
 └─ 执行规划.md
 ```
 
@@ -138,6 +182,7 @@
 - `1-评测集构建.md`：评测集目标、入库口径、去重、抽样、baseline 与 success 指标定义。
 - `2-基线构建与在线评测联动.md`：首页保存基线、在线回放对比、customerId + runId 的联动规则。
 - `3-评测集构建与在线评测实现路径（业务版）.md`：面向非技术成员的阶段路径、协同分工与验收口径。
+- `4-五步质量闭环与工程落地.md`：五步闭环、PRD 到开发拆解、数据库与存储接入方案。
 
 ## 4.2 存储热插拔策略（后续数据库迁移）
 
@@ -148,10 +193,11 @@
 
 建议迁移路径：
 
-1. 保持 `DatasetStore` 接口稳定（create/list/checkDuplicate/saveSampleBatch 等）。
-2. 新增 `SupabaseDatasetStore`（或 `PostgresDatasetStore`）并完成等价实现。
-3. 在 `createDatasetStore()` 中通过环境变量切换存储实现。
-4. 先做双写/回放校验，再切主读，最后下线文件系统主路径。
+1. 保持 `DatasetStore` 接口稳定（`create/list/checkDuplicate/saveSampleBatch` 等）。
+2. 为工作台基线新增与 `DatasetStore` 平级的 `WorkbenchBaselineStore` 抽象，避免继续直接写文件。
+3. 新增 `PostgresDatasetStore` / `PostgresWorkbenchBaselineStore` 并完成等价实现。
+4. 在工厂函数中通过环境变量切换存储实现，保留文件系统 fallback。
+5. 先双写校验，再切主读，最后下线文件系统主路径。
 
 ## 5. 统一数据模型
 

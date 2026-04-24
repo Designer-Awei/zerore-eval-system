@@ -2,6 +2,8 @@
  * @fileoverview Shared contracts for raw, enriched and presentation layers.
  */
 
+import type { ScenarioEvaluation } from "@/types/scenario";
+
 /**
  * Supported upload formats for raw chatlog ingestion.
  */
@@ -182,6 +184,14 @@ export type SummaryCard = {
 };
 
 /**
+ * Scenario-specific context collected before evaluation.
+ */
+export type ScenarioEvaluateContext = {
+  scenarioId?: string;
+  onboardingAnswers: Record<string, string>;
+};
+
+/**
  * Structured subjective scoring result.
  */
 export type SubjectiveDimensionResult = {
@@ -200,6 +210,9 @@ export type ObjectiveMetrics = {
   dropoffTurnDistribution: Record<string, number>;
   avgResponseGapSec: number;
   topicSwitchRate: number;
+  userQuestionRepeatRate: number;
+  agentResolutionSignalRate: number;
+  escalationKeywordHitRate: number;
   activeHourDistribution: Record<string, number>;
   userQuestionRate: number;
   avgUserMessageLength: number;
@@ -235,6 +248,101 @@ export type SubjectiveMetrics = {
   emotionTurningPoints: EmotionTurningPoint[];
   dimensions: SubjectiveDimensionResult[];
   signals: ImplicitSignal[];
+  goalCompletions: GoalCompletionResult[];
+  recoveryTraces: RecoveryTraceResult[];
+};
+
+/**
+ * Goal completion evaluation status per session.
+ */
+export type GoalCompletionStatus = "achieved" | "partial" | "failed" | "unclear";
+
+/**
+ * Session-level goal completion result.
+ * 目标：判断用户最初表达的意图在本 session 内是否被达成。
+ */
+export type GoalCompletionResult = {
+  sessionId: string;
+  status: GoalCompletionStatus;
+  score: number;
+  userIntent: string;
+  intentSource: FieldSource;
+  achievementEvidence: string[];
+  failureReasons: string[];
+  triggeredRules: string[];
+  confidence: number;
+  source: FieldSource;
+};
+
+/**
+ * Classified failure pattern that seeds a recovery trace.
+ */
+export type RecoveryFailureType =
+  | "emotion-drop"
+  | "ignore"
+  | "understanding-barrier"
+  | "unknown";
+
+/**
+ * Session-level recovery trace result.
+ * 目标：识别"失败 → Agent 纠偏 → 成功"模式，这是 Agent 改进最高价值的训练素材。
+ */
+export type RecoveryTraceResult = {
+  sessionId: string;
+  status: "none" | "completed" | "failed";
+  failureTurn: number | null;
+  recoveryTurn: number | null;
+  spanTurns: number | null;
+  failureType: RecoveryFailureType;
+  repairStrategy: string | null;
+  repairStrategySource: FieldSource;
+  qualityScore: number;
+  evidence: Array<{
+    turnIndex: number;
+    role: ChatRole;
+    content: string;
+  }>;
+  triggeredRules: string[];
+  confidence: number;
+};
+
+/**
+ * Supported failure tags for harvested bad cases.
+ */
+export type BadCaseTag =
+  | "goal_failed"
+  | "goal_partial"
+  | "goal_unclear"
+  | "recovery_failed"
+  | "understanding_barrier"
+  | "question_repeat"
+  | "escalation_keyword"
+  | "emotion_drop"
+  | "off_topic_shift"
+  | "long_response_gap";
+
+/**
+ * Session-level bad case asset extracted from one evaluation run.
+ */
+export type BadCaseAsset = {
+  caseKey: string;
+  sessionId: string;
+  title: string;
+  severityScore: number;
+  normalizedTranscriptHash: string;
+  duplicateGroupKey: string;
+  topicSegmentId: string;
+  topicLabel: string;
+  topicSummary: string;
+  tags: BadCaseTag[];
+  transcript: string;
+  evidence: Array<{
+    turnIndex: number;
+    role: ChatRole;
+    content: string;
+  }>;
+  suggestedAction: string;
+  sourceRunId: string;
 };
 
 /**
@@ -246,6 +354,7 @@ export type EvaluateMeta = {
   hasTimestamp: boolean;
   generatedAt: string;
   warnings: string[];
+  scenarioContext?: ScenarioEvaluateContext;
 };
 
 /**
@@ -278,6 +387,8 @@ export type EvaluateResponse = {
   artifactPath?: string;
   objectiveMetrics: ObjectiveMetrics;
   subjectiveMetrics: SubjectiveMetrics;
+  scenarioEvaluation: ScenarioEvaluation | null;
+  badCaseAssets: BadCaseAsset[];
   charts: ChartPayload[];
   suggestions: string[];
 };

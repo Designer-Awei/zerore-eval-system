@@ -25,6 +25,13 @@ export async function POST(request: Request) {
     const response = await runEvaluatePipeline(rawRows, {
       useLlm,
       runId,
+      scenarioId: body.scenarioId,
+      scenarioContext: body.scenarioContext
+        ? {
+            scenarioId: body.scenarioId,
+            onboardingAnswers: body.scenarioContext.onboardingAnswers,
+          }
+        : undefined,
       persistArtifact: body.persistArtifact ?? Boolean(body.artifactBaseName),
       artifactBaseName: body.artifactBaseName,
     });

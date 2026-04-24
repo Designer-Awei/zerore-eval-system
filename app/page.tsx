@@ -1,5 +1,5 @@
-import { EvalConsole } from "@/components/home/EvalConsole";
+import { LandingPage } from "@/components/home/LandingPage";
 
 export default function Home() {
-  return <EvalConsole />;
+  return <LandingPage />;
 }

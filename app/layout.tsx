@@ -8,8 +8,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "ZERORE Eval Console",
-  description: "对话评估 MVP 工作台，覆盖 raw -> enriched -> presentation 的完整链路。",
+  title: "ZERORE",
+  description: "把真实 AI 对话 bad case 转成证据、调优包与验证结果的质量闭环系统。",
 };
 
 export default function RootLayout({

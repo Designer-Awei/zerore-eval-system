@@ -21,6 +21,7 @@ export const onlineReplayEvaluateBodySchema = z
     replyApiBaseUrl: z.string().min(1).max(2000).optional(),
     useLlm: z.boolean().optional().default(true),
     runId: z.string().optional(),
+    scenarioId: z.string().min(1).optional(),
     replyTimeoutMs: z.number().int().min(3000).max(120000).optional(),
   })
   .refine((value) => Boolean(value.baselineRef) || (value.rawRows?.length ?? 0) > 0, {

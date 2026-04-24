@@ -80,4 +80,11 @@ export interface DatasetStore {
    * @returns Stored sample batch or null.
    */
   getSampleBatch(sampleBatchId: string): Promise<SampleBatchRecord | null>;
+
+  /**
+   * List saved sample batches, newest first.
+   *
+   * @returns Stored sample batch records.
+   */
+  listSampleBatches(): Promise<SampleBatchRecord[]>;
 }

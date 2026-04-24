@@ -3,6 +3,7 @@
  */
 
 import type { ObjectiveMetrics, SubjectiveMetrics, SummaryCard } from "@/types/pipeline";
+import type { ScenarioEvaluation } from "@/types/scenario";
 
 /**
  * Build summary cards for the primary insight row.
@@ -17,6 +18,8 @@ export function buildSummaryCards(
   subjectiveMetrics: SubjectiveMetrics,
   sessionCount: number,
   messageCount: number,
+  scenarioEvaluation?: ScenarioEvaluation | null,
+  badCaseCount = 0,
 ): SummaryCard[] {
   const empathyScore =
     subjectiveMetrics.dimensions.find((item) => item.dimension === "共情程度")?.score ?? 0;
@@ -29,8 +32,13 @@ export function buildSummaryCards(
         ).toFixed(1),
       )
     : 0;
+  const goalCompletionTotal = subjectiveMetrics.goalCompletions.length;
+  const achievedGoalCount = subjectiveMetrics.goalCompletions.filter((item) => item.status === "achieved").length;
+  const goalCompletionRate = goalCompletionTotal ? Math.round((achievedGoalCount / goalCompletionTotal) * 100) : 0;
+  const completedRecoveryCount = subjectiveMetrics.recoveryTraces.filter((item) => item.status === "completed").length;
+  const failedRecoveryCount = subjectiveMetrics.recoveryTraces.filter((item) => item.status === "failed").length;
 
-  return [
+  const cards: SummaryCard[] = [
     {
       key: "sessionCount",
       label: "会话规模",
@@ -62,10 +70,50 @@ export function buildSummaryCards(
       hint: "情绪分与共情分联合反映体验质量",
     },
     {
+      key: "goalCompletion",
+      label: "目标达成率",
+      value: `${goalCompletionRate}%`,
+      hint: goalCompletionTotal
+        ? `${achievedGoalCount}/${goalCompletionTotal} 个 session 明确达成用户初始目标`
+        : "等待 goal completion 评估结果",
+    },
+  ];
+
+  if (scenarioEvaluation) {
+    cards.push({
+      key: "businessKpi",
+      label: "业务 KPI",
+      value: `${Math.round(scenarioEvaluation.averageScore * 100)}%`,
+      hint: `${scenarioEvaluation.displayName} 的业务映射均分`,
+    });
+  }
+
+  if (badCaseCount > 0) {
+    cards.push({
+      key: "badCaseCount",
+      label: "Bad Case",
+      value: `${badCaseCount}`,
+      hint: "已识别可沉淀进案例池的失败 session",
+    });
+  }
+
+  cards.push(
+    {
+      key: "recoveryTrace",
+      label: "恢复轨迹",
+      value: `${completedRecoveryCount}`,
+      hint:
+        completedRecoveryCount || failedRecoveryCount
+          ? `完成恢复 ${completedRecoveryCount} 条，未恢复 ${failedRecoveryCount} 条`
+          : "当前尚未识别到明显的失败后恢复弧线",
+    },
+    {
       key: "signals",
       label: "高风险信号",
       value: `${highRiskSignals}`,
       hint: "来自隐式推断信号层的高风险项数量",
     },
-  ];
+  );
+
+  return cards;
 }

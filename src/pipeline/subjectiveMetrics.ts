@@ -3,6 +3,8 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildGoalCompletions } from "@/pipeline/goalCompletion";
+import { buildRecoveryTraces } from "@/pipeline/recoveryTrace";
 import { buildImplicitSignals } from "@/pipeline/signals";
 import type {
   EmotionTurningPoint,
@@ -47,6 +49,8 @@ export async function buildSubjectiveMetrics(
   }));
   const emotionTurningPoints = buildEmotionTurningPoints(rows);
   const fallbackDimensions = buildRuleBasedDimensions(rows, signals);
+  const goalCompletions = await buildGoalCompletions(rows, useLlm, runId);
+  const recoveryTraces = await buildRecoveryTraces(rows, goalCompletions, useLlm, runId);
 
   if (!useLlm) {
     return {
@@ -55,6 +59,8 @@ export async function buildSubjectiveMetrics(
       emotionTurningPoints,
       dimensions: fallbackDimensions,
       signals,
+      goalCompletions,
+      recoveryTraces,
     };
   }
 
@@ -90,6 +96,8 @@ export async function buildSubjectiveMetrics(
         sessionReviews.map((review) => review.weight),
       ),
       signals,
+      goalCompletions,
+      recoveryTraces,
     };
   } catch (error) {
     console.error("SiliconFlow subjective judge failed:", error);
@@ -99,6 +107,8 @@ export async function buildSubjectiveMetrics(
       emotionTurningPoints,
       dimensions: fallbackDimensions,
       signals,
+      goalCompletions,
+      recoveryTraces,
     };
   }
 }

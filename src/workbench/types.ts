@@ -17,3 +17,22 @@ export type WorkbenchBaselineSnapshot = {
   evaluate: EvaluateResponse;
   rawRows: RawChatlogRow[];
 };
+
+/**
+ * Lightweight baseline index row for customer-level listing.
+ */
+export type WorkbenchBaselineIndexRow = {
+  runId: string;
+  createdAt: string;
+  label?: string;
+  sourceFileName?: string;
+  fileName: string;
+};
+
+/**
+ * One resolved baseline lookup result when only runId is known.
+ */
+export type WorkbenchBaselineLookup = {
+  customerId: string;
+  snapshot: WorkbenchBaselineSnapshot;
+};

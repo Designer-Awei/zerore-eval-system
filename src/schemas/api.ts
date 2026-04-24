@@ -23,12 +23,18 @@ export const ingestRequestSchema = z.object({
   fileName: z.string().optional(),
 });
 
+const scenarioContextSchema = z.object({
+  onboardingAnswers: z.record(z.string(), z.string().max(2000)).optional().default({}),
+});
+
 /**
  * Evaluate request schema.
  */
 export const evaluateRequestSchema = z.object({
   rawRows: z.array(rawChatlogRowSchema).min(1),
   runId: z.string().optional(),
+  scenarioId: z.string().min(1).optional(),
+  scenarioContext: scenarioContextSchema.optional(),
   useLlm: z.boolean().optional(),
   artifactBaseName: z.string().min(1).optional(),
   persistArtifact: z.boolean().optional(),

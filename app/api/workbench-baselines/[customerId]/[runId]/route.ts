@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readWorkbenchBaseline } from "@/workbench/baseline-file-store";
+import { createWorkbenchBaselineStore } from "@/workbench";
 
 type RouteContext = {
   params: Promise<{ customerId: string; runId: string }>;
@@ -15,7 +15,8 @@ export async function GET(_request: Request, context: RouteContext) {
     const { customerId, runId } = await context.params;
     const decodedCustomer = decodeURIComponent(customerId);
     const decodedRun = decodeURIComponent(runId);
-    const snapshot = await readWorkbenchBaseline(decodedCustomer, decodedRun);
+    const store = createWorkbenchBaselineStore();
+    const snapshot = await store.read(decodedCustomer, decodedRun);
     if (!snapshot) {
       return NextResponse.json({ error: "未找到基线快照。" }, { status: 404 });
     }

@@ -1,0 +1,22 @@
+/**
+ * @fileoverview Workbench baseline storage factory.
+ */
+
+import type { WorkbenchBaselineStore } from "@/workbench/baseline-store";
+import { FileSystemWorkbenchBaselineStore } from "@/workbench/baseline-file-store";
+
+/**
+ * Create the active workbench baseline store.
+ *
+ * @returns Active store implementation.
+ */
+export function createWorkbenchBaselineStore(): WorkbenchBaselineStore {
+  const provider = (process.env.WORKBENCH_BASELINE_STORE_PROVIDER ?? "filesystem").trim().toLowerCase();
+  if (provider === "filesystem") {
+    return new FileSystemWorkbenchBaselineStore();
+  }
+  throw new Error(`暂不支持的 workbench baseline store provider: ${provider}`);
+}
+
+export type { WorkbenchBaselineStore } from "@/workbench/baseline-store";
+export type { WorkbenchBaselineIndexRow, WorkbenchBaselineLookup, WorkbenchBaselineSnapshot } from "@/workbench/types";

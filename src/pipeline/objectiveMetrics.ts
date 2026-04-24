@@ -10,7 +10,8 @@ import type { EnrichedChatlogRow, ObjectiveMetrics } from "@/types/pipeline";
  * @returns Objective metric summary.
  */
 export function buildObjectiveMetrics(rows: EnrichedChatlogRow[]): ObjectiveMetrics {
-  const sessionDepthDistribution = [...groupRowsBySession(rows).values()].reduce<Record<string, number>>(
+  const sessionGroups = [...groupRowsBySession(rows).values()];
+  const sessionDepthDistribution = sessionGroups.reduce<Record<string, number>>(
     (acc, sessionRows) => {
       const maxTurn = Math.max(...sessionRows.map((row) => row.turnIndex));
       const bucket = maxTurn <= 3 ? "1-3" : maxTurn <= 8 ? "4-8" : "9+";
@@ -35,7 +36,7 @@ export function buildObjectiveMetrics(rows: EnrichedChatlogRow[]): ObjectiveMetr
     ? Number((gapRows.reduce((sum, gap) => sum + gap, 0) / gapRows.length).toFixed(2))
     : 0;
 
-  const sessionTopicSwitchCounts = [...groupRowsBySession(rows).values()].map(
+  const sessionTopicSwitchCounts = sessionGroups.map(
     (sessionRows) => new Set(sessionRows.map((row) => row.topicSegmentId)).size - 1,
   );
   const topicSwitchRate = sessionTopicSwitchCounts.length
@@ -61,6 +62,9 @@ export function buildObjectiveMetrics(rows: EnrichedChatlogRow[]): ObjectiveMetr
     dropoffTurnDistribution,
     avgResponseGapSec,
     topicSwitchRate,
+    userQuestionRepeatRate: buildUserQuestionRepeatRate(sessionGroups),
+    agentResolutionSignalRate: buildAgentResolutionSignalRate(sessionGroups),
+    escalationKeywordHitRate: buildEscalationKeywordHitRate(sessionGroups),
     activeHourDistribution,
     userQuestionRate: userRows.length
       ? Number((userRows.filter((row) => row.isQuestion).length / userRows.length).toFixed(4))
@@ -125,4 +129,93 @@ function groupRowsBySession(rows: EnrichedChatlogRow[]): Map<string, EnrichedCha
     grouped.get(row.sessionId)?.push(row);
   });
   return grouped;
+}
+
+/**
+ * Build repeat-question rate from normalized user question fingerprints.
+ * @param sessionGroups Session-grouped rows.
+ * @returns Repeat-question rate in the 0-1 range.
+ */
+function buildUserQuestionRepeatRate(sessionGroups: EnrichedChatlogRow[][]): number {
+  const questionFingerprints = sessionGroups.flatMap((sessionRows) =>
+    sessionRows
+      .filter((row) => row.role === "user" && row.isQuestion)
+      .map((row) => normalizeQuestionFingerprint(row.content))
+      .filter((value) => value.length > 0),
+  );
+
+  if (questionFingerprints.length === 0) {
+    return 0;
+  }
+
+  const counts = new Map<string, number>();
+  questionFingerprints.forEach((fingerprint) => {
+    counts.set(fingerprint, (counts.get(fingerprint) ?? 0) + 1);
+  });
+  const repeatedCount = [...counts.values()].reduce(
+    (sum, count) => sum + (count >= 2 ? count - 1 : 0),
+    0,
+  );
+  return Number((repeatedCount / questionFingerprints.length).toFixed(4));
+}
+
+/**
+ * Build the rate of sessions whose assistant turns contain a resolution signal.
+ * @param sessionGroups Session-grouped rows.
+ * @returns Session-level resolution-signal rate.
+ */
+function buildAgentResolutionSignalRate(sessionGroups: EnrichedChatlogRow[][]): number {
+  if (sessionGroups.length === 0) {
+    return 0;
+  }
+
+  const hitCount = sessionGroups.filter((sessionRows) => hasResolutionSignal(sessionRows)).length;
+  return Number((hitCount / sessionGroups.length).toFixed(4));
+}
+
+/**
+ * Build the rate of sessions that hit escalation keywords.
+ * @param sessionGroups Session-grouped rows.
+ * @returns Session-level escalation hit rate.
+ */
+function buildEscalationKeywordHitRate(sessionGroups: EnrichedChatlogRow[][]): number {
+  if (sessionGroups.length === 0) {
+    return 0;
+  }
+
+  const hitCount = sessionGroups.filter((sessionRows) => hasEscalationKeyword(sessionRows)).length;
+  return Number((hitCount / sessionGroups.length).toFixed(4));
+}
+
+/**
+ * Detect whether a session contains a clear resolution-oriented assistant action.
+ * @param sessionRows Session rows.
+ * @returns Whether the session has a resolution signal.
+ */
+function hasResolutionSignal(sessionRows: EnrichedChatlogRow[]): boolean {
+  return sessionRows.some(
+    (row) =>
+      row.role === "assistant" &&
+      /(已(经)?(为您|帮您)?(处理|提交|安排|登记|解决)|预计.*(回复|发出)|工单号|已提交权限申请|补发|退款)/.test(
+        row.content,
+      ),
+  );
+}
+
+/**
+ * Detect whether one session contains escalation or complaint keywords.
+ * @param sessionRows Session rows.
+ * @returns Whether escalation intent appears.
+ */
+function hasEscalationKeyword(sessionRows: EnrichedChatlogRow[]): boolean {
+  return sessionRows.some((row) => /(转人工|投诉|主管|经理|升级专员|人工复核|工单)/.test(row.content));
+}
+
+/**
+ * Normalize question text for coarse repeat detection.
+ * @param value Question text.
+ * @returns Short fingerprint.
+ */
+function normalizeQuestionFingerprint(value: string): string {
+  return value.replace(/[？?，,。.!！\s]/g, "").slice(0, 18);
 }

@@ -4,17 +4,22 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { buildBadCaseAssets } from "@/pipeline/badCases";
 import { buildChartPayloads } from "@/pipeline/chartBuilder";
 import { enrichRows, toEnrichedCsv } from "@/pipeline/enrich";
 import { buildObjectiveMetrics } from "@/pipeline/objectiveMetrics";
+import { evaluateScenarioTemplate } from "@/pipeline/scenarioEvaluator";
 import { buildSubjectiveMetrics } from "@/pipeline/subjectiveMetrics";
 import { buildSuggestions } from "@/pipeline/suggest";
 import { buildSummaryCards } from "@/pipeline/summary";
-import type { EvaluateResponse, RawChatlogRow } from "@/types/pipeline";
+import { getScenarioTemplateById } from "@/scenarios";
+import type { EvaluateResponse, RawChatlogRow, ScenarioEvaluateContext } from "@/types/pipeline";
 
 export type EvaluateRunOptions = {
   useLlm: boolean;
   runId: string;
+  scenarioId?: string;
+  scenarioContext?: ScenarioEvaluateContext;
   persistArtifact?: boolean;
   artifactBaseName?: string;
 };
@@ -38,6 +43,21 @@ export async function runEvaluatePipeline(
   const enrichedCsv = toEnrichedCsv(enrichedRows);
   const objectiveMetrics = buildObjectiveMetrics(enrichedRows);
   const subjectiveMetrics = await buildSubjectiveMetrics(enrichedRows, options.useLlm, options.runId);
+  const badCaseAssets = buildBadCaseAssets(enrichedRows, objectiveMetrics, subjectiveMetrics, {
+    runId: options.runId,
+    scenarioId: options.scenarioId,
+  });
+  const scenarioTemplate = options.scenarioId ? getScenarioTemplateById(options.scenarioId) : null;
+  if (options.scenarioId && !scenarioTemplate) {
+    warnings.push(`未找到场景模板：${options.scenarioId}，本次按通用评估返回。`);
+  }
+  const scenarioEvaluation = scenarioTemplate
+    ? evaluateScenarioTemplate(scenarioTemplate, {
+        rows: enrichedRows,
+        objectiveMetrics,
+        subjectiveMetrics,
+      })
+    : null;
   const charts = buildChartPayloads(enrichedRows);
   const suggestions = buildSuggestions(enrichedRows, objectiveMetrics, subjectiveMetrics);
   const summaryCards = buildSummaryCards(
@@ -45,6 +65,8 @@ export async function runEvaluatePipeline(
     subjectiveMetrics,
     new Set(rawRows.map((row) => row.sessionId)).size,
     rawRows.length,
+    scenarioEvaluation,
+    badCaseAssets.length,
   );
 
   if (subjectiveMetrics.status !== "ready") {
@@ -54,7 +76,7 @@ export async function runEvaluatePipeline(
   let artifactPath: string | undefined;
   if (options.persistArtifact ?? Boolean(options.artifactBaseName)) {
     const artifactBaseName = sanitizeArtifactBaseName(options.artifactBaseName ?? options.runId);
-    const artifactDirectory = path.join(process.cwd(), "mock-chatlog", "enriched-data");
+    const artifactDirectory = path.join("mock-chatlog", "enriched-data");
     artifactPath = path.join(artifactDirectory, `${artifactBaseName}.enriched.csv`);
     await mkdir(artifactDirectory, { recursive: true });
     await writeFile(artifactPath, enrichedCsv, "utf8");
@@ -68,6 +90,7 @@ export async function runEvaluatePipeline(
       hasTimestamp: rawRows.every((row) => Boolean(row.timestamp)),
       generatedAt: new Date().toISOString(),
       warnings,
+      scenarioContext: options.scenarioContext,
     },
     summaryCards,
     topicSegments,
@@ -76,6 +99,8 @@ export async function runEvaluatePipeline(
     artifactPath,
     objectiveMetrics,
     subjectiveMetrics,
+    scenarioEvaluation,
+    badCaseAssets,
     charts,
     suggestions,
   };

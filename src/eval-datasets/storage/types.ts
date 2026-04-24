@@ -2,6 +2,8 @@
  * @fileoverview Shared contracts for dataset storage adapters.
  */
 
+import type { BadCaseFeatureSnapshot } from "@/badcase/types";
+
 /**
  * Supported dataset case set types.
  */
@@ -22,6 +24,14 @@ export type DatasetCaseRecord = {
   baselineVersion: string;
   baselineCaseScore: number;
   tags: string[];
+  title?: string;
+  transcript?: string;
+  suggestedAction?: string;
+  scenarioId?: string;
+  sourceRunId?: string;
+  harvestedAt?: string;
+  failureSeverityScore?: number;
+  featureSnapshot?: BadCaseFeatureSnapshot;
   createdAt: string;
   updatedAt: string;
 };

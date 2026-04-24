@@ -2,16 +2,19 @@
  * @fileoverview Filesystem-backed dataset storage adapter.
  */
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { DatasetStore } from "@/eval-datasets/storage/dataset-store";
 import type {
+  CaseSetType,
   DatasetBaselineRecord,
   DatasetCaseRecord,
   DatasetRunResultRecord,
   DuplicateCheckResult,
   SampleBatchRecord,
 } from "@/eval-datasets/storage/types";
+
+const DATASET_ROOT = "eval-datasets";
 
 /**
  * Filesystem implementation of the dataset store contract.
@@ -20,16 +23,6 @@ import type {
  * business-facing interface that a future database adapter can implement.
  */
 export class FileSystemDatasetStore implements DatasetStore {
-  private readonly rootDirectory: string;
-
-  /**
-   * Create a filesystem dataset store.
-   * @param rootDirectory Root dataset directory.
-   */
-  constructor(rootDirectory = path.join(process.cwd(), "eval-datasets")) {
-    this.rootDirectory = rootDirectory;
-  }
-
   /**
    * @inheritdoc
    */
@@ -37,7 +30,8 @@ export class FileSystemDatasetStore implements DatasetStore {
     const caseDirectory = this.getCaseDirectory(record.caseSetType, record.caseId);
     await mkdir(caseDirectory, { recursive: true });
     await writeJsonFile(path.join(caseDirectory, "case.json"), record);
-    await appendCasesIndexRow(this.rootDirectory, record);
+    await appendCasesIndexRow(DATASET_ROOT, record);
+    await updateCaseSetManifest(DATASET_ROOT, record.caseSetType);
   }
 
   /**
@@ -90,7 +84,7 @@ export class FileSystemDatasetStore implements DatasetStore {
     const cases: DatasetCaseRecord[] = [];
 
     for (const currentSet of targetSets) {
-      const casesDirectory = path.join(this.rootDirectory, currentSet, "cases");
+      const casesDirectory = path.join(DATASET_ROOT, currentSet, "cases");
       try {
         const directoryItems = await readdir(casesDirectory, { withFileTypes: true });
         for (const item of directoryItems) {
@@ -155,7 +149,7 @@ export class FileSystemDatasetStore implements DatasetStore {
    * @inheritdoc
    */
   async saveRunResult(record: DatasetRunResultRecord): Promise<void> {
-    const runDirectory = path.join(this.rootDirectory, "runs", record.runId);
+    const runDirectory = path.join(DATASET_ROOT, "runs", record.runId);
     await mkdir(runDirectory, { recursive: true });
     const line = `${JSON.stringify(record)}\n`;
     const filePath = path.join(runDirectory, "case-results.jsonl");
@@ -166,7 +160,7 @@ export class FileSystemDatasetStore implements DatasetStore {
    * @inheritdoc
    */
   async saveSampleBatch(record: SampleBatchRecord): Promise<void> {
-    const samplesDirectory = path.join(this.rootDirectory, "samples");
+    const samplesDirectory = path.join(DATASET_ROOT, "samples");
     await mkdir(samplesDirectory, { recursive: true });
     await writeJsonFile(path.join(samplesDirectory, `${record.sampleBatchId}.json`), record);
   }
@@ -175,12 +169,46 @@ export class FileSystemDatasetStore implements DatasetStore {
    * @inheritdoc
    */
   async getSampleBatch(sampleBatchId: string): Promise<SampleBatchRecord | null> {
-    const filePath = path.join(this.rootDirectory, "samples", `${sampleBatchId}.json`);
+    const filePath = path.join(DATASET_ROOT, "samples", `${sampleBatchId}.json`);
     try {
       return (await readJsonFile(filePath)) as SampleBatchRecord;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * @inheritdoc
+   */
+  async listSampleBatches(): Promise<SampleBatchRecord[]> {
+    const samplesDirectory = path.join(DATASET_ROOT, "samples");
+    let names: string[] = [];
+    try {
+      names = await readdir(samplesDirectory);
+    } catch {
+      return [];
+    }
+
+    const rows: Array<SampleBatchRecord & { mtimeMs: number }> = [];
+    for (const fileName of names.filter((name) => name.endsWith(".json"))) {
+      const filePath = path.join(samplesDirectory, fileName);
+      try {
+        const [raw, fileStat] = await Promise.all([readFile(filePath, "utf8"), stat(filePath)]);
+        rows.push({
+          ...(JSON.parse(raw) as SampleBatchRecord),
+          mtimeMs: fileStat.mtimeMs,
+        });
+      } catch {
+        continue;
+      }
+    }
+
+    rows.sort((left, right) => right.mtimeMs - left.mtimeMs);
+    return rows.map((row) => {
+      const { mtimeMs, ...record } = row;
+      void mtimeMs;
+      return record;
+    });
   }
 
   /**
@@ -190,7 +218,7 @@ export class FileSystemDatasetStore implements DatasetStore {
    * @returns Case directory path.
    */
   private getCaseDirectory(caseSetType: "goodcase" | "badcase", caseId: string): string {
-    return path.join(this.rootDirectory, caseSetType, "cases", caseId);
+    return path.join(DATASET_ROOT, caseSetType, "cases", caseId);
   }
 }
 
@@ -276,4 +304,48 @@ function csvEscapeCell(value: string): string {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+/**
+ * Keep the case-set manifest aligned with stored case directories.
+ * @param rootDirectory Dataset root directory.
+ * @param caseSetType Case-set type that changed.
+ */
+async function updateCaseSetManifest(rootDirectory: string, caseSetType: CaseSetType): Promise<void> {
+  const manifestPath = path.join(rootDirectory, caseSetType, "manifest.json");
+  const casesDirectory = path.join(rootDirectory, caseSetType, "cases");
+  let caseCount = 0;
+  try {
+    const items = await readdir(casesDirectory, { withFileTypes: true });
+    caseCount = items.filter((item) => item.isDirectory()).length;
+  } catch {
+    caseCount = 0;
+  }
+
+  let current: Record<string, unknown> = {};
+  try {
+    current = (await readJsonFile(manifestPath)) as Record<string, unknown>;
+  } catch {
+    current = {};
+  }
+
+  await writeJsonFile(manifestPath, {
+    caseSetType,
+    description: current.description ?? defaultCaseSetDescription(caseSetType),
+    ...current,
+    caseCount,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Default manifest description for newly created dataset sets.
+ * @param caseSetType Case-set type.
+ * @returns Human-readable description.
+ */
+function defaultCaseSetDescription(caseSetType: CaseSetType): string {
+  if (caseSetType === "goodcase") {
+    return "高质量案例集合，用于回归保持率验证。";
+  }
+  return "低质量案例集合，用于修复率和风险下降验证。";
 }
