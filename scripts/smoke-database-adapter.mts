@@ -1,4 +1,5 @@
 import * as dbIndex from "../src/db/index.ts";
+import { loadDotEnvFile } from "./load-env.mts";
 
 const dbApi = resolveInteropModule(dbIndex);
 
@@ -8,6 +9,8 @@ void main().catch((error) => {
 });
 
 async function main(): Promise<void> {
+  await loadDotEnvFile();
+
   const database = await dbApi.createZeroreDatabase();
   const now = new Date().toISOString();
   const workspaceId = process.env.DB_SMOKE_WORKSPACE_ID ?? "db-smoke";

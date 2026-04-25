@@ -72,6 +72,7 @@ After setting `ZERORE_DATABASE_ADAPTER=postgres` and `DATABASE_URL`, run:
 
 ```bash
 npm run db:smoke
+npm run db:smoke:evaluate-projection
 ```
 
 ## Traceability Rule
