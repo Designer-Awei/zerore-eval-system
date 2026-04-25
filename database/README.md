@@ -45,7 +45,7 @@ Postgres/Supabase bridge mode:
 
 ```bash
 ZERORE_DATABASE_ADAPTER=postgres
-DATABASE_URL=postgres://user:password@host:5432/database
+DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@db.rukjxsykowetriaxifon.supabase.co:5432/postgres
 ZERORE_POSTGRES_SSL=auto
 ZERORE_POSTGRES_POOL_MAX=5
 ```
@@ -55,6 +55,24 @@ ZERORE_POSTGRES_POOL_MAX=5
 - `auto`: enable relaxed SSL for common managed Postgres hosts such as Supabase/Neon.
 - `require`: always enable relaxed SSL.
 - `disable`: do not enable SSL, useful for local Docker Postgres.
+
+For Supabase, use the database connection string from Supabase Dashboard -> Project Settings -> Database. The publishable key belongs to browser/client usage and does not replace `DATABASE_URL`.
+
+## Supabase Migration
+
+Supabase project configuration lives in `supabase/config.toml`, and the initial schema migration is copied from `database/schema.sql` into `supabase/migrations`.
+
+```bash
+supabase login
+npm run db:supabase:link
+npm run db:supabase:push
+```
+
+After setting `ZERORE_DATABASE_ADAPTER=postgres` and `DATABASE_URL`, run:
+
+```bash
+npm run db:smoke
+```
 
 ## Traceability Rule
 
