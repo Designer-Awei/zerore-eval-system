@@ -48,6 +48,8 @@ ZERORE_DATABASE_ADAPTER=postgres
 DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@db.rukjxsykowetriaxifon.supabase.co:5432/postgres
 ZERORE_POSTGRES_SSL=auto
 ZERORE_POSTGRES_POOL_MAX=5
+DATASET_STORE_PROVIDER=database
+WORKBENCH_BASELINE_STORE_PROVIDER=database
 ```
 
 `ZERORE_POSTGRES_SSL` accepts:
@@ -73,6 +75,7 @@ After setting `ZERORE_DATABASE_ADAPTER=postgres` and `DATABASE_URL`, run:
 ```bash
 npm run db:smoke
 npm run db:smoke:evaluate-projection
+npm run db:smoke:stores
 ```
 
 ## Traceability Rule

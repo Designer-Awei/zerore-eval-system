@@ -3,6 +3,7 @@
  */
 
 import type { WorkbenchBaselineStore } from "@/workbench/baseline-store";
+import { DatabaseWorkbenchBaselineStore } from "@/workbench/baseline-database-store";
 import { FileSystemWorkbenchBaselineStore } from "@/workbench/baseline-file-store";
 
 /**
@@ -12,6 +13,9 @@ import { FileSystemWorkbenchBaselineStore } from "@/workbench/baseline-file-stor
  */
 export function createWorkbenchBaselineStore(options?: { workspaceId?: string }): WorkbenchBaselineStore {
   const provider = (process.env.WORKBENCH_BASELINE_STORE_PROVIDER ?? "filesystem").trim().toLowerCase();
+  if (provider === "database") {
+    return new DatabaseWorkbenchBaselineStore(options?.workspaceId);
+  }
   if (provider === "filesystem") {
     return new FileSystemWorkbenchBaselineStore(options?.workspaceId);
   }

@@ -50,6 +50,7 @@ After setting `DATABASE_URL`, run:
 ```bash
 npm run db:smoke
 npm run db:smoke:evaluate-projection
+npm run db:smoke:stores
 ```
 
-The first smoke writes one generic record through the active `ZeroreDatabase` adapter and reads it back. The second smoke runs the evaluate pipeline on a fixture CSV, persists the quality-signal projection and verifies the run can be read back.
+The first smoke writes one generic record through the active `ZeroreDatabase` adapter and reads it back. The second smoke runs the evaluate pipeline on a fixture CSV, persists the quality-signal projection and verifies the run can be read back. The third smoke verifies database-backed dataset and workbench baseline stores.

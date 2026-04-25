@@ -103,6 +103,7 @@ ZERORE 当前不追求做一个“大而全 eval 平台”，而是优先做：
 - `src/pii/redaction.ts`：默认开启的 PII 脱敏，已接入 ingest / evaluate；可用 `PII_REDACTION_ENABLED=false` 关闭。
 - `src/db/*`：workspace 分区的 local JSON database adapter，后续替换 Postgres/Supabase 时保持接口不变。
 - `src/db/postgres-database.ts`：Postgres/Supabase JSONB bridge adapter，可通过 `ZERORE_DATABASE_ADAPTER=postgres` 与 `DATABASE_URL` 切换。
+- `DATASET_STORE_PROVIDER=database` / `WORKBENCH_BASELINE_STORE_PROVIDER=database`：可让评测集与工作台 baseline 走当前 `ZeroreDatabase` adapter。
 - `src/queue/index.ts` 与 `/api/jobs`：本地异步任务队列合约，后续可替换 Redis/BullMQ/Temporal。
 - `calibration/scripts/expand-gold-from-fixtures.mts`：从 fixture chatlog 扩充 gold set draft，当前 `v2` 已扩到 12 条。
 
