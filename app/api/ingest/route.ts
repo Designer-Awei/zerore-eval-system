@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getZeroreRequestContext } from "@/auth/context";
+import { buildDataMappingPlan } from "@/data-onboarding/detector";
+import { normalizeSourceWithMappingPlan } from "@/data-onboarding/normalize";
 import { previewCsvLines } from "@/lib/csv";
 import { inferFormatFromFileName, parseByFormat } from "@/parsers";
 import { redactRawRows } from "@/pii/redaction";
 import { toCanonicalCsv } from "@/pipeline/enrich";
+import { buildStructuredTaskMetricsFromSource } from "@/pipeline/structuredTaskMetrics";
 import { ingestRequestSchema } from "@/schemas/api";
 import type { IngestResponse } from "@/types/pipeline";
 
@@ -24,7 +27,15 @@ export async function POST(request: Request) {
     const format = body.format ?? inferFormatFromFileName(fileName);
 
     const parsedRows = parseByFormat(body.text, format, fileName);
-    const redaction = redactRawRows(parsedRows);
+    const mappingPlan = parsedRows.length === 0
+      ? buildDataMappingPlan({ text: body.text, format, fileName })
+      : null;
+    const mappedRows = parsedRows.length > 0
+      ? parsedRows
+      : mappingPlan
+        ? normalizeSourceWithMappingPlan(body.text, mappingPlan)
+        : [];
+    const redaction = redactRawRows(mappedRows);
     const rawRows = redaction.rows;
     if (rawRows.length === 0) {
       return NextResponse.json(
@@ -43,6 +54,13 @@ export async function POST(request: Request) {
     if (redaction.report.redactedFields > 0) {
       warnings.push(`PII 脱敏已处理 ${redaction.report.redactedFields} 处：${redaction.report.categories.join(", ")}。`);
     }
+    if (mappingPlan && rawRows.length > 0) {
+      warnings.push(`已根据 Data Mapping Plan 将 ${mappingPlan.sourceFormat} 字段对齐为内部 raw chatlog。`);
+    }
+    const structuredTaskMetrics = buildStructuredTaskMetricsFromSource(body.text, format);
+    if (structuredTaskMetrics?.warnings.length) {
+      warnings.push(...structuredTaskMetrics.warnings);
+    }
 
     const response: IngestResponse = {
       format,
@@ -50,6 +68,7 @@ export async function POST(request: Request) {
       rawRows,
       canonicalCsv,
       previewTop20: previewCsvLines(canonicalCsv, 21),
+      structuredTaskMetrics,
       ingestMeta: {
         sessions,
         rows: rawRows.length,

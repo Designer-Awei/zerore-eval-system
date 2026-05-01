@@ -12,7 +12,11 @@ const ALLOWED_ROLES = new Set<RawChatlogRow["role"]>(["user", "assistant", "syst
  * @returns Parsed raw chat rows.
  */
 export function parseJsonRows(text: string): RawChatlogRow[] {
-  const parsed = JSON.parse(text) as unknown;
+  const parsed = parseJsonOrJsonl(text);
+  if (isSgdDialogueArray(parsed)) {
+    return parseSgdDialogues(parsed);
+  }
+
   const arrayData = Array.isArray(parsed)
     ? parsed
     : typeof parsed === "object" && parsed !== null && "messages" in parsed
@@ -37,4 +41,107 @@ export function parseJsonRows(text: string): RawChatlogRow[] {
       },
     ];
   });
+}
+
+/**
+ * Parse JSON or newline-delimited JSON text.
+ * @param text Raw JSON or JSONL text.
+ * @returns Parsed value.
+ */
+function parseJsonOrJsonl(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    const records = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as unknown);
+    if (records.length === 0) {
+      throw error;
+    }
+    return records;
+  }
+}
+
+type SgdDialogue = {
+  dialogue_id?: unknown;
+  turns?: unknown;
+};
+
+type SgdTurn = {
+  speaker?: unknown;
+  utterance?: unknown;
+};
+
+/**
+ * Detect the DSTC8 Schema-Guided Dialogue JSON shape.
+ * @param value Parsed JSON value.
+ * @returns Whether value is an SGD dialogue array.
+ */
+function isSgdDialogueArray(value: unknown): value is SgdDialogue[] {
+  return (
+    Array.isArray(value) &&
+    value.some(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "dialogue_id" in item &&
+        "turns" in item &&
+        Array.isArray((item as SgdDialogue).turns),
+    )
+  );
+}
+
+/**
+ * Convert DSTC8 Schema-Guided Dialogue records into canonical raw rows.
+ * @param dialogues SGD dialogue objects.
+ * @returns Raw rows with synthetic timestamps.
+ */
+function parseSgdDialogues(dialogues: SgdDialogue[]): RawChatlogRow[] {
+  return dialogues.flatMap((dialogue, dialogueIndex) => {
+    const sessionId = String(dialogue.dialogue_id ?? `sgd_dialogue_${dialogueIndex + 1}`);
+    const turns = Array.isArray(dialogue.turns) ? (dialogue.turns as SgdTurn[]) : [];
+    return turns.flatMap((turn, turnIndex) => {
+      const role = mapSgdSpeakerToRole(turn.speaker);
+      const content = typeof turn.utterance === "string" ? turn.utterance.trim() : "";
+      if (!role || !content) {
+        return [];
+      }
+      return [
+        {
+          sessionId,
+          timestamp: buildSyntheticTimestamp(dialogueIndex, turnIndex),
+          role,
+          content,
+        },
+      ];
+    });
+  });
+}
+
+/**
+ * Map SGD speaker labels to the local chat role vocabulary.
+ * @param speaker Raw SGD speaker value.
+ * @returns Local role or null for unsupported speakers.
+ */
+function mapSgdSpeakerToRole(speaker: unknown): RawChatlogRow["role"] | null {
+  const normalized = String(speaker ?? "").toUpperCase();
+  if (normalized === "USER") {
+    return "user";
+  }
+  if (normalized === "SYSTEM") {
+    return "assistant";
+  }
+  return null;
+}
+
+/**
+ * Build deterministic timestamps for datasets that do not include time fields.
+ * @param dialogueIndex Dialogue index in the source file.
+ * @param turnIndex Turn index inside one dialogue.
+ * @returns ISO timestamp spaced by dialogue and turn order.
+ */
+function buildSyntheticTimestamp(dialogueIndex: number, turnIndex: number): string {
+  return new Date(Date.UTC(2020, 0, 1 + dialogueIndex, 0, 0, turnIndex)).toISOString();
 }

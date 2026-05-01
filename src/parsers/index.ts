@@ -14,7 +14,7 @@ import type { RawChatlogRow, UploadFormat } from "@/types/pipeline";
  */
 export function inferFormatFromFileName(fileName: string): UploadFormat {
   const extension = fileName.split(".").pop()?.toLowerCase();
-  if (extension === "csv" || extension === "json" || extension === "txt" || extension === "md") {
+  if (extension === "csv" || extension === "json" || extension === "jsonl" || extension === "txt" || extension === "md") {
     return extension;
   }
   return "txt";
@@ -35,7 +35,7 @@ export function parseByFormat(
   if (format === "csv") {
     return parseCsvRows(text);
   }
-  if (format === "json") {
+  if (format === "json" || format === "jsonl") {
     return parseJsonRows(text);
   }
   return parseTextRows(text, format, fileName);

@@ -381,8 +381,46 @@ function clampConfidence(confidence: number): number {
  * @returns Normalized text.
  */
 function normalizeText(value: string | undefined, fallback: string): string {
-  const normalized = value?.trim();
-  return normalized && normalized.length > 0 ? normalized : fallback;
+  const normalized = collapseRepeatedTokens(value?.trim() ?? "");
+  const selected = normalized && normalized.length > 0 ? normalized : fallback;
+  return truncateText(selected, 260);
+}
+
+/**
+ * Collapse repeated token runs from occasional malformed LLM output.
+ * @param value Raw text.
+ * @returns Text with long repeated-token runs shortened.
+ */
+function collapseRepeatedTokens(value: string): string {
+  const tokens = value.split(/(\s+)/);
+  let lastWord = "";
+  let repeatCount = 0;
+  return tokens
+    .filter((token) => {
+      if (/^\s+$/.test(token)) {
+        return true;
+      }
+      if (token === lastWord) {
+        repeatCount += 1;
+      } else {
+        lastWord = token;
+        repeatCount = 1;
+      }
+      return repeatCount <= 3;
+    })
+    .join("")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Truncate long judge text to keep reports readable.
+ * @param value Text value.
+ * @param maxLength Maximum output length.
+ * @returns Truncated text.
+ */
+function truncateText(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength)}…`;
 }
 
 /**

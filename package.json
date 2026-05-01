@@ -20,7 +20,9 @@
     "calibration:drift": "node --import tsx calibration/scripts/detect-drift.mts",
     "gold:v2:scaffold": "node --import tsx calibration/scripts/scaffold-gold-set-v2.mts",
     "gold:v2:import": "node --import tsx calibration/scripts/import-gold-labels.mts",
-    "gold:v2:expand": "node --import tsx calibration/scripts/expand-gold-from-fixtures.mts"
+    "gold:v2:expand": "node --import tsx calibration/scripts/expand-gold-from-fixtures.mts",
+    "gold:v2:coverage": "node --import tsx calibration/scripts/report-gold-coverage.mts",
+    "datasets:sgd:package": "node scripts/package-sgd-dataset.mjs"
   },
   "dependencies": {
     "next": "16.2.3",

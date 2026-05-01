@@ -17,6 +17,8 @@ export const SCENARIO_OPTIONS = BUILTIN_SCENARIO_TEMPLATES.map((item) => ({
   scenarioId: item.scenarioId,
   displayName: item.displayName,
   onboardingQuestions: item.onboardingQuestions,
+  evaluationMetrics: item.evaluationMetrics ?? [],
+  syntheticCaseSeeds: item.syntheticCaseSeeds ?? [],
 }));
 
 /**

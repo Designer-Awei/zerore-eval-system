@@ -7,6 +7,8 @@ import path from "node:path";
 import { buildBadCaseAssets } from "@/pipeline/badCases";
 import { buildChartPayloads } from "@/pipeline/chartBuilder";
 import { enrichRows, toEnrichedCsv } from "@/pipeline/enrich";
+import { buildEvalCaseBundle } from "@/pipeline/evalCaseBuilder";
+import { buildMetricRegistrySnapshot } from "@/pipeline/metricRegistry";
 import { buildObjectiveMetrics } from "@/pipeline/objectiveMetrics";
 import { evaluateScenarioTemplate } from "@/pipeline/scenarioEvaluator";
 import { buildSubjectiveMetrics } from "@/pipeline/subjectiveMetrics";
@@ -14,12 +16,16 @@ import { buildSuggestions } from "@/pipeline/suggest";
 import { buildSummaryCards } from "@/pipeline/summary";
 import { getScenarioTemplateById } from "@/scenarios";
 import type { EvaluateResponse, RawChatlogRow, ScenarioEvaluateContext } from "@/types/pipeline";
+import type { StructuredTaskMetrics } from "@/types/rich-conversation";
+import type { EvalTrace } from "@/types/eval-trace";
 
 export type EvaluateRunOptions = {
   useLlm: boolean;
   runId: string;
   scenarioId?: string;
   scenarioContext?: ScenarioEvaluateContext;
+  structuredTaskMetrics?: StructuredTaskMetrics;
+  trace?: EvalTrace;
   persistArtifact?: boolean;
   artifactBaseName?: string;
 };
@@ -41,6 +47,7 @@ export async function runEvaluatePipeline(
 
   const { enrichedRows, topicSegments } = await enrichRows(rawRows, options.useLlm, options.runId);
   const enrichedCsv = toEnrichedCsv(enrichedRows);
+  const evalCaseBundle = buildEvalCaseBundle(enrichedRows, options.structuredTaskMetrics, options.trace);
   const objectiveMetrics = buildObjectiveMetrics(enrichedRows);
   const subjectiveMetrics = await buildSubjectiveMetrics(enrichedRows, options.useLlm, options.runId);
   const badCaseAssets = buildBadCaseAssets(enrichedRows, objectiveMetrics, subjectiveMetrics, {
@@ -58,6 +65,15 @@ export async function runEvaluatePipeline(
         subjectiveMetrics,
       })
     : null;
+  const metricRegistry = buildMetricRegistrySnapshot({
+    objectiveMetrics,
+    subjectiveMetrics,
+    structuredTaskMetrics: options.structuredTaskMetrics,
+    trace: options.trace,
+    capabilities: evalCaseBundle.capabilityReport,
+    scenarioEvaluation,
+    scenarioTemplate,
+  });
   const charts = buildChartPayloads(enrichedRows);
   const suggestions = buildSuggestions(enrichedRows, objectiveMetrics, subjectiveMetrics);
   const summaryCards = buildSummaryCards(
@@ -67,6 +83,7 @@ export async function runEvaluatePipeline(
     rawRows.length,
     scenarioEvaluation,
     badCaseAssets.length,
+    options.structuredTaskMetrics,
   );
 
   if (subjectiveMetrics.status !== "ready") {
@@ -99,6 +116,10 @@ export async function runEvaluatePipeline(
     artifactPath,
     objectiveMetrics,
     subjectiveMetrics,
+    structuredTaskMetrics: options.structuredTaskMetrics,
+    trace: options.trace,
+    evalCaseBundle,
+    metricRegistry,
     scenarioEvaluation,
     badCaseAssets,
     charts,

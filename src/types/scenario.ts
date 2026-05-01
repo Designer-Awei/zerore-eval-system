@@ -2,6 +2,8 @@
  * @fileoverview Scenario-template and business-KPI evaluation contracts.
  */
 
+import type { EvalMetricKind, EvalMetricScope, EvalRequiredField } from "@/types/eval-metric";
+
 /**
  * One metric reference inside a business KPI mapping.
  */
@@ -36,12 +38,43 @@ export type ScenarioOnboardingQuestion = {
 };
 
 /**
+ * Scenario-level metric template inspired by G-Eval and DAG metric builders.
+ */
+export type ScenarioEvaluationMetric = {
+  id: string;
+  displayName: string;
+  description: string;
+  kind: Extract<EvalMetricKind, "rule" | "llm_geval" | "llm_dag" | "structured" | "trace" | "synthetic">;
+  scope: EvalMetricScope;
+  threshold: number;
+  direction: "higher-is-better" | "lower-is-better";
+  requiredFields: EvalRequiredField[];
+  criteria?: string;
+  evaluationSteps: string[];
+  fallback: "skip" | "degrade" | "rule_proxy";
+  mapsToMetricId?: string;
+};
+
+/**
+ * Synthetic case seed used to generate or manually draft edge-case eval data.
+ */
+export type ScenarioSyntheticCaseSeed = {
+  id: string;
+  userPersona: string;
+  situation: string;
+  expectedFailureMode: string;
+  targetMetrics: string[];
+};
+
+/**
  * Human-authored scenario template for one business workflow.
  */
 export type ScenarioTemplate = {
   scenarioId: string;
   displayName: string;
   businessKpis: ScenarioBusinessKpi[];
+  evaluationMetrics?: ScenarioEvaluationMetric[];
+  syntheticCaseSeeds?: ScenarioSyntheticCaseSeed[];
   onboardingQuestions: ScenarioOnboardingQuestion[];
 };
 

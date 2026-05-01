@@ -23,6 +23,11 @@ import { UploadDropzone } from "@/components/home/UploadDropzone";
 import { AppShell, Stepper, type StepperStep } from "@/components/shell";
 import type { RemediationPackageSnapshot } from "@/remediation";
 import { SCENARIO_OPTIONS } from "@/scenarios";
+import type { DataMappingPlan } from "@/types/data-onboarding";
+import type { EvalCaseBundle } from "@/types/eval-case";
+import type { EvalMetricRegistrySnapshot, EvalMetricResult } from "@/types/eval-metric";
+import type { StructuredTaskMetrics } from "@/types/rich-conversation";
+import type { ScenarioEvaluationMetric, ScenarioSyntheticCaseSeed } from "@/types/scenario";
 import type {
   EvaluateResponse,
   IngestResponse,
@@ -33,7 +38,7 @@ import styles from "./evalConsole.module.css";
 
 type EvalConsoleRunState = "idle" | "ingesting" | "ready" | "running" | "success" | "error";
 
-type ResultTabKey = "summary" | "badcase" | "goal" | "recovery" | "kpi" | "suggestion";
+type ResultTabKey = "summary" | "metric" | "badcase" | "goal" | "recovery" | "kpi" | "suggestion";
 
 type EvalConsoleSessionSnapshot = {
   fileName: string;
@@ -48,6 +53,7 @@ type EvalConsoleSessionSnapshot = {
   selectedScenarioId: string;
   scenarioOnboardingAnswers: Record<string, string>;
   remediationPackage: RemediationPackageSnapshot | null;
+  dataMappingPlan: DataMappingPlan | null;
   currentStep: number;
 };
 
@@ -59,9 +65,15 @@ const PROCESSING_LOGS = [
   "生成图表载荷、证据与策略建议",
   "组装本次评估交付结果",
 ];
-const ALLOWED_EXTENSIONS = new Set(["csv", "json", "txt", "md"]);
+const ALLOWED_EXTENSIONS = new Set(["csv", "json", "jsonl", "txt", "md"]);
 const MAX_UPLOAD_SIZE_MB = 5;
 const EVAL_CONSOLE_SNAPSHOT_KEY = "zerore:evalConsoleSnapshot:v2";
+const SGD_SAMPLE_DATASET = {
+  fileName: "sgd-restaurants-sample.json",
+  path: "/datasets/sgd-restaurants-sample.json",
+  title: "餐厅预订任务型助手样例",
+  description: "DSTC8 Schema-Guided Dialogue · Restaurants_1 · 24 turns",
+};
 
 const STEPS: StepperStep[] = [
   { key: "upload", title: "1 · 上传日志", hint: "选择文件 + 业务场景" },
@@ -69,6 +81,26 @@ const STEPS: StepperStep[] = [
   { key: "package", title: "3 · 生成调优包", hint: "交给 Claude Code / Codex" },
   { key: "validate", title: "4 · 保存基线 / 回放", hint: "进入在线评测验证" },
 ];
+
+/**
+ * Request an upload-time mapping plan from the Data Onboarding Agent.
+ */
+async function requestDataMappingPlan(
+  text: string,
+  format: UploadFormat,
+  fileName: string,
+): Promise<DataMappingPlan> {
+  const response = await fetch("/api/data-onboarding", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, format, fileName, useLlm: true }),
+  });
+  const result = (await response.json()) as { plan?: DataMappingPlan; error?: string };
+  if (!response.ok || !result.plan) {
+    throw new Error(result.error ?? "数据结构识别失败");
+  }
+  return result.plan;
+}
 
 /**
  * Render the main evaluation console.
@@ -89,9 +121,11 @@ export function EvalConsole() {
   const [baselineSaving, setBaselineSaving] = useState(false);
   const [badCaseHarvesting, setBadCaseHarvesting] = useState(false);
   const [remediationGenerating, setRemediationGenerating] = useState(false);
+  const [sampleLoading, setSampleLoading] = useState(false);
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
   const [scenarioOnboardingAnswers, setScenarioOnboardingAnswers] = useState<Record<string, string>>({});
   const [remediationPackage, setRemediationPackage] = useState<RemediationPackageSnapshot | null>(null);
+  const [dataMappingPlan, setDataMappingPlan] = useState<DataMappingPlan | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [resultTab, setResultTab] = useState<ResultTabKey>("summary");
 
@@ -122,6 +156,7 @@ export function EvalConsole() {
       setSelectedScenarioId(snapshot.selectedScenarioId ?? "");
       setScenarioOnboardingAnswers(snapshot.scenarioOnboardingAnswers ?? {});
       setRemediationPackage(snapshot.remediationPackage ?? null);
+      setDataMappingPlan(snapshot.dataMappingPlan ?? null);
       setCurrentStep(snapshot.currentStep ?? 0);
     } catch {
       window.sessionStorage.removeItem(EVAL_CONSOLE_SNAPSHOT_KEY);
@@ -147,6 +182,7 @@ export function EvalConsole() {
       selectedScenarioId,
       scenarioOnboardingAnswers,
       remediationPackage,
+      dataMappingPlan,
       currentStep,
     };
     window.sessionStorage.setItem(EVAL_CONSOLE_SNAPSHOT_KEY, JSON.stringify(snapshot));
@@ -163,6 +199,7 @@ export function EvalConsole() {
     selectedScenarioId,
     scenarioOnboardingAnswers,
     remediationPackage,
+    dataMappingPlan,
     currentStep,
   ]);
 
@@ -215,7 +252,7 @@ export function EvalConsole() {
   async function handleFile(file: File) {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-      setError("文件类型不支持，请上传 csv/json/txt/md。");
+      setError("文件类型不支持，请上传 csv/json/jsonl/txt/md。");
       setRunState("error");
       return;
     }
@@ -232,10 +269,12 @@ export function EvalConsole() {
       setEvaluateResult(null);
       setIngestResult(null);
       setRemediationPackage(null);
+      setDataMappingPlan(null);
       setFileName(file.name);
       const inferred = inferFormatFromFileName(file.name);
       setFormat(inferred);
       const text = await file.text();
+      setDataMappingPlan(await requestDataMappingPlan(text, inferred, file.name));
 
       const response = await fetch("/api/ingest", {
         method: "POST",
@@ -252,6 +291,50 @@ export function EvalConsole() {
     } catch (requestError) {
       setRunState("error");
       setError(requestError instanceof Error ? requestError.message : "上传失败");
+    }
+  }
+
+  /**
+   * Load the bundled SGD restaurant-booking demo dataset.
+   */
+  async function handleUseSampleDataset() {
+    try {
+      setSampleLoading(true);
+      setRunState("ingesting");
+      setError("");
+      setNotice("");
+      setEvaluateResult(null);
+      setIngestResult(null);
+      setRemediationPackage(null);
+      setDataMappingPlan(null);
+      setFileName(SGD_SAMPLE_DATASET.fileName);
+      setFormat("json");
+      setSelectedScenarioId("");
+      setScenarioOnboardingAnswers({});
+
+      const sampleResponse = await fetch(SGD_SAMPLE_DATASET.path);
+      if (!sampleResponse.ok) {
+        throw new Error("示例数据加载失败");
+      }
+      const text = await sampleResponse.text();
+      setDataMappingPlan(await requestDataMappingPlan(text, "json", SGD_SAMPLE_DATASET.fileName));
+      const response = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, format: "json", fileName: SGD_SAMPLE_DATASET.fileName }),
+      });
+      const result = (await response.json()) as Partial<IngestResponse> & { error?: string };
+      if (!response.ok) {
+        throw new Error(result.error ?? "示例数据解析失败");
+      }
+      setIngestResult(result as IngestResponse);
+      setRunState("ready");
+      setNotice(`已载入示例数据：${SGD_SAMPLE_DATASET.description}，共 ${result.ingestMeta?.rows ?? 0} 条消息。`);
+    } catch (requestError) {
+      setRunState("error");
+      setError(requestError instanceof Error ? requestError.message : "示例数据加载失败");
+    } finally {
+      setSampleLoading(false);
     }
   }
 
@@ -303,6 +386,7 @@ export function EvalConsole() {
         body: JSON.stringify({
           rawRows: ingestResult.rawRows,
           useLlm: true,
+          structuredTaskMetrics: ingestResult.structuredTaskMetrics,
           scenarioId: selectedScenarioId || undefined,
           scenarioContext: selectedScenarioId
             ? {
@@ -552,11 +636,14 @@ export function EvalConsole() {
               format={format}
               fileInputRef={fileInputRef}
               ingestResult={ingestResult}
+              dataMappingPlan={dataMappingPlan}
               previewHeader={previewHeader}
               previewRows={previewRows}
               selectedScenarioId={selectedScenarioId}
               selectedScenarioLabel={selectedScenarioLabel}
               activeOnboardingQuestions={activeOnboardingQuestions}
+              scenarioEvaluationMetrics={selectedScenarioOption?.evaluationMetrics ?? []}
+              scenarioSyntheticCaseSeeds={selectedScenarioOption?.syntheticCaseSeeds ?? []}
               answeredOnboardingCount={answeredOnboardingCount}
               scenarioOnboardingAnswers={scenarioOnboardingAnswers}
               canRunEvaluate={canRunEvaluate}
@@ -565,10 +652,12 @@ export function EvalConsole() {
               onDrop={handleDrop}
               onFileInputChange={handleFileInputChange}
               onRunEvaluate={handleRunEvaluate}
+              onUseSampleDataset={handleUseSampleDataset}
               onScenarioChange={handleScenarioChange}
               onOnboardingAnswerChange={handleOnboardingAnswerChange}
               onAdvance={() => goToStep(1)}
               canAdvance={Boolean(evaluateResult)}
+              sampleLoading={sampleLoading}
             />
           ) : null}
 
@@ -629,11 +718,14 @@ type StepUploadProps = {
   format: UploadFormat;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   ingestResult: IngestResponse | null;
+  dataMappingPlan: DataMappingPlan | null;
   previewHeader: string[];
   previewRows: string[][];
   selectedScenarioId: string;
   selectedScenarioLabel: string;
   activeOnboardingQuestions: { id: string; question: string }[];
+  scenarioEvaluationMetrics: ScenarioEvaluationMetric[];
+  scenarioSyntheticCaseSeeds: ScenarioSyntheticCaseSeed[];
   answeredOnboardingCount: number;
   scenarioOnboardingAnswers: Record<string, string>;
   canRunEvaluate: boolean;
@@ -642,10 +734,12 @@ type StepUploadProps = {
   onDrop: (event: DragEvent<HTMLLabelElement>) => Promise<void>;
   onFileInputChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   onRunEvaluate: () => Promise<void>;
+  onUseSampleDataset: () => Promise<void>;
   onScenarioChange: (scenarioId: string) => void;
   onOnboardingAnswerChange: (questionId: string, value: string) => void;
   onAdvance: () => void;
   canAdvance: boolean;
+  sampleLoading: boolean;
 };
 
 function StepUpload(props: StepUploadProps) {
@@ -653,12 +747,12 @@ function StepUpload(props: StepUploadProps) {
     <>
       <section className={styles.stepIntro}>
         <h2>上传一段对话日志</h2>
-        <p>支持 CSV / JSON / TXT / MD，单文件 ≤ 5MB。文件解析后会按 session 自动分组、补全字段。</p>
+        <p>支持 CSV / JSON / JSONL / TXT / MD，单文件 ≤ 5MB。文件会先经过 Data Onboarding Agent 做结构识别与能力检查。</p>
         <div className={styles.howTo}>
           <span className={styles.howToTitle}>怎么用</span>
           <span>① 把对话日志拖到左侧上传区，或点击选择文件。</span>
           <span>② 选一个业务场景（可选），让评估出 KPI 报告而不只是通用指标。</span>
-          <span>③ 解析完成后，点击「下一步：运行评估」。</span>
+          <span>③ 解析完成后，点击上传区右侧「开始评估」，完成后进入结果页。</span>
         </div>
       </section>
 
@@ -671,6 +765,30 @@ function StepUpload(props: StepUploadProps) {
           <span className={styles.panelMeta}>RAW INGEST</span>
         </div>
         <div className={styles.intakeStack}>
+          <div className={styles.sampleDatasetCard}>
+            <div>
+              <span className={styles.sampleDatasetEyebrow}>内置示例</span>
+              <strong>{SGD_SAMPLE_DATASET.title}</strong>
+              <p>{SGD_SAMPLE_DATASET.description}</p>
+            </div>
+            <div className={styles.sampleDatasetActions}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={props.sampleLoading || props.runState === "running" || props.runState === "ingesting"}
+                onClick={() => void props.onUseSampleDataset()}
+              >
+                {props.sampleLoading ? "载入中…" : "使用示例数据"}
+              </button>
+              <a
+                className={styles.downloadLinkButton}
+                href={SGD_SAMPLE_DATASET.path}
+                download={SGD_SAMPLE_DATASET.fileName}
+              >
+                下载 JSON
+              </a>
+            </div>
+          </div>
           <UploadDropzone
             dragActive={props.dragActive}
             uploading={props.runState === "ingesting"}
@@ -691,6 +809,7 @@ function StepUpload(props: StepUploadProps) {
               {props.ingestResult ? `${props.ingestResult.ingestMeta.rows} 条消息` : "等待日志接入"}
             </span>
           </div>
+          {props.dataMappingPlan ? <DataMappingPlanPanel plan={props.dataMappingPlan} /> : null}
           <div className={styles.controlRow}>
             <label className={styles.controlLabel}>
               业务场景
@@ -708,6 +827,12 @@ function StepUpload(props: StepUploadProps) {
               </select>
             </label>
           </div>
+          {props.selectedScenarioId ? (
+            <ScenarioSkillPlanPanel
+              metrics={props.scenarioEvaluationMetrics}
+              syntheticCaseSeeds={props.scenarioSyntheticCaseSeeds}
+            />
+          ) : null}
           {props.activeOnboardingQuestions.length > 0 ? (
             <div className={styles.onboardingBox}>
               <div className={styles.onboardingHeader}>
@@ -756,18 +881,6 @@ function StepUpload(props: StepUploadProps) {
         <div className={styles.stepNavRight}>
           <button
             type="button"
-            className={styles.processButton}
-            disabled={!props.canRunEvaluate}
-            onClick={() => void props.onRunEvaluate()}
-            style={{ minWidth: 220 }}
-          >
-            <span className={styles.processButtonText}>
-              <strong>{props.runState === "running" ? "评估进行中…" : "运行评估"}</strong>
-              <small>系统会跑完客观+主观+证据+图表全链路</small>
-            </span>
-          </button>
-          <button
-            type="button"
             className={styles.primaryOutlineButton}
             disabled={!props.canAdvance}
             onClick={props.onAdvance}
@@ -778,6 +891,252 @@ function StepUpload(props: StepUploadProps) {
       </div>
     </>
   );
+}
+
+function DataMappingPlanPanel(props: { plan: DataMappingPlan }) {
+  const enabled = props.plan.capabilityReport.enabledMetricGroups;
+  const disabled = props.plan.capabilityReport.disabledMetricGroups.slice(0, 4);
+  const mappings = props.plan.fieldMappings.slice(0, 8);
+  return (
+    <div className={styles.mappingBox}>
+      <div className={styles.mappingHeader}>
+        <div>
+          <strong>Data Onboarding Agent</strong>
+          <span>
+            识别为 {formatSourceFormat(props.plan.sourceFormat)} · 置信度 {Math.round(props.plan.confidence * 100)}%
+          </span>
+        </div>
+        <span className={styles.mappingAgentStatus}>{formatAgentStatus(props.plan.agentReview.status)}</span>
+      </div>
+      <p className={styles.mappingSummary}>{props.plan.agentReview.summary}</p>
+      <div className={styles.capabilityGrid}>
+        {enabled.map((item) => (
+          <span className={`${styles.capabilityPill} ${styles.capabilityEnabled}`} key={item}>
+            可用 · {formatCapability(item)}
+          </span>
+        ))}
+        {disabled.map((item) => (
+          <span className={`${styles.capabilityPill} ${styles.capabilityDisabled}`} key={item.group}>
+            降级 · {formatCapability(item.group)}
+          </span>
+        ))}
+      </div>
+      <div className={styles.mappingList}>
+        {mappings.map((item) => (
+          <div className={styles.mappingRow} key={`${item.target}_${item.path}`}>
+            <span>{item.target}</span>
+            <code>{item.path}</code>
+          </div>
+        ))}
+      </div>
+      {props.plan.warnings.length > 0 ? (
+        <div className={styles.mappingWarnings}>
+          {props.plan.warnings.slice(0, 3).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      ) : null}
+      {props.plan.questionsForUser.length > 0 ? (
+        <div className={styles.mappingQuestions}>
+          {props.plan.questionsForUser.slice(0, 2).map((item) => (
+            <span key={item}>待确认：{item}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Render scenario skill metric templates before evaluation.
+ * @param props Scenario metric and synthetic seed props.
+ * @returns Scenario skill plan panel.
+ */
+function ScenarioSkillPlanPanel(props: {
+  metrics: ScenarioEvaluationMetric[];
+  syntheticCaseSeeds: ScenarioSyntheticCaseSeed[];
+}) {
+  return (
+    <div className={styles.mappingBox}>
+      <div className={styles.mappingHeader}>
+        <div>
+          <strong>Scenario Skill Plan</strong>
+          <span>
+            {props.metrics.length} 个指标模板 · {props.syntheticCaseSeeds.length} 个 synthetic case seed
+          </span>
+        </div>
+        <span className={styles.mappingAgentStatus}>SKILL</span>
+      </div>
+      <div className={styles.capabilityGrid}>
+        {props.metrics.map((metric) => (
+          <span className={`${styles.capabilityPill} ${styles.capabilityEnabled}`} key={metric.id}>
+            {metric.kind} · {metric.displayName}
+          </span>
+        ))}
+      </div>
+      <div className={styles.mappingList}>
+        {props.metrics.slice(0, 4).map((metric) => (
+          <div className={styles.mappingRow} key={metric.id}>
+            <span>{metric.displayName}</span>
+            <code>{metric.requiredFields.length ? metric.requiredFields.join(" + ") : "no required fields"} · {formatRate(metric.threshold)}</code>
+          </div>
+        ))}
+      </div>
+      {props.syntheticCaseSeeds.length > 0 ? (
+        <div className={styles.mappingWarnings}>
+          {props.syntheticCaseSeeds.slice(0, 3).map((seed) => (
+            <span key={seed.id}>Synthetic：{seed.situation}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatSourceFormat(value: DataMappingPlan["sourceFormat"]): string {
+  const labels: Record<DataMappingPlan["sourceFormat"], string> = {
+    sgd: "SGD 标注对话",
+    assetops: "AssetOpsBench 任务集",
+    "plain-chatlog": "普通 Chatlog",
+    "custom-json": "自定义 JSON",
+    "custom-jsonl": "自定义 JSONL",
+    "custom-csv": "自定义 CSV",
+    "plain-text": "纯文本日志",
+    unknown: "未知格式",
+  };
+  return labels[value];
+}
+
+function formatAgentStatus(value: DataMappingPlan["agentReview"]["status"]): string {
+  if (value === "completed") return "LLM 已复核";
+  if (value === "degraded") return "规则识别";
+  return "规则识别";
+}
+
+function formatCapability(value: string): string {
+  const labels: Record<string, string> = {
+    basic_chat_eval: "基础对话",
+    schema_aware_eval: "Schema",
+    slot_eval: "Slot",
+    state_tracking_eval: "State",
+    service_call_eval: "Service Call",
+    service_result_grounding: "Result Grounding",
+    actual_tool_trace_eval: "Tool Trace",
+    retrieval_eval: "Retrieval / Expected Output",
+  };
+  return labels[value] ?? value;
+}
+
+/**
+ * Format structured benchmark source labels for the result panel.
+ * @param value Structured metric source format.
+ * @returns Human-readable source label.
+ */
+function formatStructuredSource(value: StructuredTaskMetrics["sourceFormat"]): string {
+  const labels: Record<StructuredTaskMetrics["sourceFormat"], string> = {
+    sgd: "SGD",
+    assetops: "AssetOps",
+    custom: "Custom",
+  };
+  return labels[value];
+}
+
+/**
+ * Format structured metric availability status.
+ * @param value Structured metric status.
+ * @returns Human-readable status label.
+ */
+function formatStructuredStatus(value: StructuredTaskMetrics["status"]): string {
+  if (value === "ready") return "已启用";
+  if (value === "degraded") return "部分降级";
+  return "不可用";
+}
+
+/**
+ * Format a 0-1 metric as a whole-percent string.
+ * @param value Rate in the 0-1 range.
+ * @returns Percent string.
+ */
+function formatRate(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+/**
+ * Format metric gate status.
+ * @param value Gate status.
+ * @returns Human-readable label.
+ */
+function formatGateStatus(value: EvalMetricRegistrySnapshot["gateStatus"]): string {
+  if (value === "passed") return "通过";
+  if (value === "failed") return "失败";
+  return "预警";
+}
+
+/**
+ * Format metric result status.
+ * @param value Metric status.
+ * @returns Human-readable label.
+ */
+function formatMetricStatus(value: EvalMetricResult["status"]): string {
+  const labels: Record<EvalMetricResult["status"], string> = {
+    ready: "可评分",
+    degraded: "降级",
+    skipped: "跳过",
+    error: "错误",
+  };
+  return labels[value];
+}
+
+/**
+ * Format metric category names.
+ * @param value Metric category.
+ * @returns Display label.
+ */
+function formatMetricCategory(value: string): string {
+  const labels: Record<string, string> = {
+    objective: "客观规则指标",
+    subjective: "LLM Judge 指标",
+    structured: "结构化链路指标",
+    trace: "Agent Trace 指标",
+    business: "业务 KPI Gate",
+    synthetic: "合成用例覆盖",
+  };
+  return labels[value] ?? value;
+}
+
+/**
+ * Pick a CSS class for a metric status.
+ * @param value Metric status.
+ * @returns CSS module class name.
+ */
+function getMetricStatusClass(value: EvalMetricResult["status"]): string {
+  if (value === "ready") return styles.metricStatusReady;
+  if (value === "degraded") return styles.metricStatusDegraded;
+  if (value === "error") return styles.metricStatusError;
+  return styles.metricStatusSkipped;
+}
+
+/**
+ * Format canonical required field labels.
+ * @param value Required field identifier.
+ * @returns Human-readable field label.
+ */
+function formatRequiredField(value: string): string {
+  const labels: Record<string, string> = {
+    turns: "Turns",
+    expected_output: "Expected Output",
+    retrieval_context: "Retrieval Context",
+    tools_called: "Tools Called",
+    expected_tools: "Expected Tools",
+    trace: "Trace",
+    frames: "Frames",
+    slots: "Slots",
+    state: "State",
+    service_call: "Service Call",
+    service_results: "Service Results",
+    schema: "Schema",
+  };
+  return labels[value] ?? value;
 }
 
 /* ---------------- Step 2: Evaluate ---------------- */
@@ -801,6 +1160,7 @@ type StepEvaluateProps = {
 function StepEvaluate(props: StepEvaluateProps) {
   const tabs: { key: ResultTabKey; label: string; count?: number }[] = [
     { key: "summary", label: "核心指标" },
+    { key: "metric", label: "指标矩阵", count: props.evaluateResult?.metricRegistry?.results.length ?? 0 },
     { key: "badcase", label: "Bad Case", count: props.evaluateResult?.badCaseAssets.length ?? 0 },
     { key: "goal", label: "目标达成", count: props.evaluateResult?.subjectiveMetrics.goalCompletions.length ?? 0 },
     {
@@ -870,6 +1230,7 @@ function StepEvaluate(props: StepEvaluateProps) {
                 </div>
                 <SummaryGrid cards={props.summaryCards} />
               </section>
+              <StructuredTaskMetricsPanel metrics={props.evaluateResult.structuredTaskMetrics} />
               <section className={`${styles.panel} ${styles.panelFull}`}>
                 <div className={styles.panelHeader}>
                   <div>
@@ -881,6 +1242,20 @@ function StepEvaluate(props: StepEvaluateProps) {
                 <ChartsPanel charts={props.evaluateResult.charts} />
               </section>
             </>
+          ) : null}
+
+          {props.activeTab === "metric" ? (
+            <section className={`${styles.panel} ${styles.panelFull}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>指标矩阵</h2>
+                  <p>统一展示 rule / G-Eval / DAG / structured / trace 指标的状态、阈值、证据与降级原因。</p>
+                </div>
+                <span className={styles.panelMeta}>{props.evaluateResult.metricRegistry?.gateStatus ?? "METRICS"}</span>
+              </div>
+              <EvalCaseBundlePanel bundle={props.evaluateResult.evalCaseBundle} />
+              <MetricRegistryPanel registry={props.evaluateResult.metricRegistry} />
+            </section>
           ) : null}
 
           {props.activeTab === "badcase" ? (
@@ -998,6 +1373,279 @@ function StepEvaluate(props: StepEvaluateProps) {
       </div>
     </>
   );
+}
+
+/**
+ * Render schema-aware annotation coverage and grounding metrics when available.
+ * @param props Panel props with optional structured metrics.
+ * @returns A result panel or null when no structured metrics exist.
+ */
+function StructuredTaskMetricsPanel(props: { metrics?: StructuredTaskMetrics }) {
+  if (!props.metrics) {
+    return null;
+  }
+  const metrics = props.metrics;
+  const countItems: Array<[string, number]> = [
+    ["Cases", metrics.caseCount],
+    ["Services", metrics.serviceCount],
+    ["Frames", metrics.frameCount],
+    ["Actions", metrics.actionCount],
+    ["Slots", metrics.slotMentionCount],
+    ["States", metrics.dialogueStateCount],
+    ["Service calls", metrics.serviceCallCount],
+    ["Service results", metrics.serviceResultCount],
+  ];
+  if (metrics.schemaServiceCount) {
+    countItems.push(
+      ["Schema services", metrics.schemaServiceCount],
+      ["Schema intents", metrics.schemaIntentCount ?? 0],
+      ["Schema slots", metrics.schemaSlotCount ?? 0],
+    );
+  }
+  const rateItems: Array<[string, number, string]> = [
+    ["Intent 覆盖率", metrics.intentCoverageRate, "state.active_intent 是否被稳定标注"],
+    ["State Slot 覆盖率", metrics.stateSlotCoverageRate, "state.slot_values 是否承载已知约束"],
+    ["调用参数追溯率", metrics.serviceCallGroundingRate, "service_call.parameters 是否能追溯到此前 state"],
+    ["结果返回覆盖率", metrics.serviceResultAvailabilityRate, "service_call 是否有同 turn/service 的 service_results"],
+    ["交易确认率", metrics.transactionalConfirmationRate, "预订/购买/转账类调用前是否出现确认行为"],
+  ];
+  if (metrics.schemaServiceCount) {
+    rateItems.push(
+      ["Schema Service 覆盖率", metrics.schemaServiceCoverageRate ?? 0, "dialogue.services 是否能在 schema 中找到定义"],
+      ["Schema Intent 合法率", metrics.schemaIntentCoverageRate ?? 0, "active_intent 是否属于对应 service schema"],
+      ["Schema Slot 合法率", metrics.schemaSlotCoverageRate ?? 0, "slot/state/call 参数是否属于对应 service schema"],
+    );
+  }
+
+  return (
+    <section className={`${styles.panel} ${styles.panelFull}`}>
+      <div className={styles.panelHeader}>
+        <div>
+          <h2>结构化链路评估</h2>
+          <p>当数据包含 frames / slots / state / service_call / service_results 时，系统会启用这些可验证指标。</p>
+        </div>
+        <span className={styles.panelMeta}>{formatStructuredSource(metrics.sourceFormat)}</span>
+      </div>
+      <div className={styles.mappingBox}>
+        <div className={styles.mappingHeader}>
+          <div>
+            <strong>Annotation Coverage</strong>
+            <span>用于判断这份数据能不能跑 schema-aware、slot、state tracking 与 tool grounding 评估。</span>
+          </div>
+          <span className={styles.mappingAgentStatus}>{formatStructuredStatus(metrics.status)}</span>
+        </div>
+        <div className={styles.capabilityGrid}>
+          {countItems.map(([label, value]) => (
+            <span className={`${styles.capabilityPill} ${styles.capabilityEnabled}`} key={label}>
+              {label} · {value}
+            </span>
+          ))}
+        </div>
+        <div className={styles.mappingList}>
+          {rateItems.map(([label, value, note]) => (
+            <div className={styles.mappingRow} key={label}>
+              <span>{label}</span>
+              <code>{formatRate(Number(value))} · {note}</code>
+            </div>
+          ))}
+        </div>
+        {metrics.warnings.length > 0 ? (
+          <div className={styles.mappingWarnings}>
+            {metrics.warnings.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Render internal evaluation cases and capability alignment.
+ * @param props Panel props with optional case bundle.
+ * @returns Case bundle diagnostic panel.
+ */
+function EvalCaseBundlePanel(props: { bundle?: EvalCaseBundle }) {
+  if (!props.bundle) {
+    return <p className={styles.emptyState}>本次结果还没有生成 EvalCase Bundle。</p>;
+  }
+  const capabilityReport = props.bundle.capabilityReport;
+  const availableFields = Object.entries(capabilityReport.availableFields).filter(([, available]) => available);
+  const missingFields = capabilityReport.missingFields.slice(0, 8);
+  const sampleCase = props.bundle.cases[0];
+  return (
+    <div className={styles.mappingBox}>
+      <div className={styles.mappingHeader}>
+        <div>
+          <strong>EvalCase Bundle</strong>
+          <span>
+            {props.bundle.caseCount} 个 session case · {capabilityReport.enabledMetricGroups.length} 个可启用指标组
+          </span>
+        </div>
+        <span className={styles.mappingAgentStatus}>TESTCASE</span>
+      </div>
+      {sampleCase ? (
+        <p className={styles.mappingSummary}>
+          示例 case：{sampleCase.sessionId} · {sampleCase.metadata.messageCount} turns · input "{truncateText(sampleCase.input, 48)}"
+        </p>
+      ) : null}
+      <div className={styles.capabilityGrid}>
+        {availableFields.map(([field]) => (
+          <span className={`${styles.capabilityPill} ${styles.capabilityEnabled}`} key={field}>
+            可用 · {formatRequiredField(field)}
+          </span>
+        ))}
+        {missingFields.map((field) => (
+          <span className={`${styles.capabilityPill} ${styles.capabilityDisabled}`} key={field}>
+            缺失 · {formatRequiredField(field)}
+          </span>
+        ))}
+      </div>
+      {capabilityReport.disabledMetricGroups.length > 0 ? (
+        <div className={styles.mappingList}>
+          {capabilityReport.disabledMetricGroups.slice(0, 4).map((item) => (
+            <div className={styles.mappingRow} key={item.group}>
+              <span>{formatCapability(item.group)}</span>
+              <code>{item.missingFields.map(formatRequiredField).join(" + ")}</code>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {capabilityReport.warnings.length > 0 ? (
+        <div className={styles.mappingWarnings}>
+          {capabilityReport.warnings.slice(0, 3).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Render unified metric registry results and gate reasons.
+ * @param props Panel props with optional metric registry.
+ * @returns Metric registry content.
+ */
+function MetricRegistryPanel(props: { registry?: EvalMetricRegistrySnapshot }) {
+  if (!props.registry) {
+    return <p className={styles.emptyState}>本次结果还没有生成统一指标矩阵。</p>;
+  }
+  const registry = props.registry;
+  const grouped = groupMetricResults(registry.results);
+  return (
+    <div className={styles.metricRegistryStack}>
+      <div className={styles.metricRegistrySummary}>
+        <div>
+          <span>Gate</span>
+          <strong>{formatGateStatus(registry.gateStatus)}</strong>
+          <small>通过率 {formatRate(registry.passRate)}</small>
+        </div>
+        <div>
+          <span>Ready</span>
+          <strong>{registry.readyCount}</strong>
+          <small>可直接评分</small>
+        </div>
+        <div>
+          <span>Degraded</span>
+          <strong>{registry.degradedCount}</strong>
+          <small>降级评分</small>
+        </div>
+        <div>
+          <span>Skipped</span>
+          <strong>{registry.skippedCount}</strong>
+          <small>字段不足</small>
+        </div>
+      </div>
+      {registry.gateReasons.length > 0 ? (
+        <div className={styles.mappingWarnings}>
+          {registry.gateReasons.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      ) : null}
+      {Object.entries(grouped).map(([category, items]) => (
+        <div className={styles.metricGroup} key={category}>
+          <div className={styles.metricGroupHeader}>
+            <strong>{formatMetricCategory(category)}</strong>
+            <span>{items.length} 个指标</span>
+          </div>
+          <div className={styles.metricResultGrid}>
+            {items.map((item) => (
+              <MetricResultCard item={item} key={item.id} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Render one normalized metric result card.
+ * @param props Card props.
+ * @returns Metric card.
+ */
+function MetricResultCard(props: { item: EvalMetricResult }) {
+  const item = props.item;
+  return (
+    <article className={styles.metricResultCard}>
+      <div className={styles.metricResultTopline}>
+        <div>
+          <strong>{item.displayName}</strong>
+          <span>{item.kind} · {item.scope} · threshold {formatRate(item.threshold)}</span>
+        </div>
+        <span className={`${styles.metricStatusPill} ${getMetricStatusClass(item.status)}`}>
+          {formatMetricStatus(item.status)}
+        </span>
+      </div>
+      <div className={styles.metricResultScore}>
+        <strong>{item.score === null ? "--" : formatRate(item.score)}</strong>
+        <span>{item.success === null ? "未进入 gate" : item.success ? "通过" : "未达标"}</span>
+      </div>
+      <p>{item.reason}</p>
+      {item.missingFields.length > 0 ? (
+        <div className={styles.capabilityGrid}>
+          {item.missingFields.map((field) => (
+            <span className={`${styles.capabilityPill} ${styles.capabilityDisabled}`} key={field}>
+              缺失 · {field}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {item.evidence.length > 0 ? (
+        <div className={styles.mappingWarnings}>
+          {item.evidence.slice(0, 2).map((evidence) => (
+            <span key={evidence}>{evidence}</span>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+/**
+ * Group metric results by category while preserving insertion order.
+ * @param items Metric results.
+ * @returns Grouped metric result map.
+ */
+function groupMetricResults(items: EvalMetricResult[]): Record<string, EvalMetricResult[]> {
+  return items.reduce<Record<string, EvalMetricResult[]>>((groups, item) => {
+    groups[item.category] = groups[item.category] ?? [];
+    groups[item.category].push(item);
+    return groups;
+  }, {});
+}
+
+/**
+ * Truncate long inline strings for compact diagnostics.
+ * @param value Raw text.
+ * @param maxLength Maximum displayed characters.
+ * @returns Truncated text with suffix when needed.
+ */
+function truncateText(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 /* ---------------- Step 3: Package ---------------- */

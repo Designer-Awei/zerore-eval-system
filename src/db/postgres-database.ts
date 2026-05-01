@@ -31,57 +31,76 @@ export class PostgresDatabase implements ZeroreDatabase {
   }
 
   async upsert(record: DbRecord): Promise<void> {
-    await this.ensureReady();
-    await this.pool.query(
-      `
-        insert into zerore_records (workspace_id, type, id, payload, created_at, updated_at)
-        values ($1, $2, $3, $4::jsonb, $5, $6)
-        on conflict (workspace_id, type, id)
-        do update set
-          payload = excluded.payload,
-          updated_at = excluded.updated_at
-      `,
-      [
-        record.workspaceId,
-        record.type,
-        record.id,
-        JSON.stringify(record.payload),
-        record.createdAt,
-        record.updatedAt,
-      ],
+    await runWithTransientDatabaseRetry(
+      `upsert zerore_record ${record.workspaceId}/${record.type}/${record.id}`,
+      async () => {
+        await this.ensureReady();
+        await this.pool.query(
+          `
+            insert into zerore_records (workspace_id, type, id, payload, created_at, updated_at)
+            values ($1, $2, $3, $4::jsonb, $5, $6)
+            on conflict (workspace_id, type, id)
+            do update set
+              payload = excluded.payload,
+              updated_at = excluded.updated_at
+          `,
+          [
+            record.workspaceId,
+            record.type,
+            record.id,
+            JSON.stringify(record.payload),
+            record.createdAt,
+            record.updatedAt,
+          ],
+        );
+      },
     );
   }
 
   async get(workspaceId: string, type: string, id: string): Promise<DbRecord | null> {
-    await this.ensureReady();
-    const result = await this.pool.query<ZeroreRecordRow>(
-      `
-        select id, workspace_id, type, payload, created_at, updated_at
-        from zerore_records
-        where workspace_id = $1 and type = $2 and id = $3
-        limit 1
-      `,
-      [workspaceId, type, id],
+    const result = await runWithTransientDatabaseRetry(
+      `get zerore_record ${workspaceId}/${type}/${id}`,
+      async () => {
+        await this.ensureReady();
+        return this.pool.query<ZeroreRecordRow>(
+          `
+            select id, workspace_id, type, payload, created_at, updated_at
+            from zerore_records
+            where workspace_id = $1 and type = $2 and id = $3
+            limit 1
+          `,
+          [workspaceId, type, id],
+        );
+      },
     );
     return result.rows[0] ? rowToDbRecord(result.rows[0]) : null;
   }
 
   async list(workspaceId: string, type: string): Promise<DbRecord[]> {
-    await this.ensureReady();
-    const result = await this.pool.query<ZeroreRecordRow>(
-      `
-        select id, workspace_id, type, payload, created_at, updated_at
-        from zerore_records
-        where workspace_id = $1 and type = $2
-        order by updated_at desc
-      `,
-      [workspaceId, type],
+    const result = await runWithTransientDatabaseRetry(
+      `list zerore_records ${workspaceId}/${type}`,
+      async () => {
+        await this.ensureReady();
+        return this.pool.query<ZeroreRecordRow>(
+          `
+            select id, workspace_id, type, payload, created_at, updated_at
+            from zerore_records
+            where workspace_id = $1 and type = $2
+            order by updated_at desc
+          `,
+          [workspaceId, type],
+        );
+      },
     );
     return result.rows.map(rowToDbRecord);
   }
 
   private ensureReady(): Promise<void> {
     this.ready ??= this.pool.query(BRIDGE_TABLE_SQL).then(() => undefined);
+    this.ready = this.ready.catch((error) => {
+      this.ready = null;
+      throw error;
+    });
     return this.ready;
   }
 }
@@ -127,6 +146,81 @@ function resolveSslConfig(connectionString: string): PoolConfig["ssl"] {
     return { rejectUnauthorized: false };
   }
   return undefined;
+}
+
+/**
+ * Retry one database operation when the connection fails transiently.
+ * @param label Operation label used in warnings.
+ * @param operation Database operation to execute.
+ * @returns Operation result.
+ */
+async function runWithTransientDatabaseRetry<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  const maxAttempts = Number(process.env.ZERORE_POSTGRES_RETRY_ATTEMPTS ?? 3);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts || !isTransientDatabaseError(error)) {
+        throw error;
+      }
+      const delayMs = 150 * attempt;
+      console.warn(
+        `[DB] transient postgres error during ${label}; retrying ${attempt}/${maxAttempts - 1} in ${delayMs}ms: ${getErrorMessage(error)}`,
+      );
+      await delay(delayMs);
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Detect connection-level database errors worth retrying.
+ * @param error Unknown thrown value from pg.
+ * @returns Whether retrying is likely to help.
+ */
+function isTransientDatabaseError(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  const message = getErrorMessage(error);
+  return (
+    [
+      "08000",
+      "08003",
+      "08006",
+      "57P01",
+      "57P02",
+      "53300",
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "ETIMEDOUT",
+      "ENOTFOUND",
+      "EAI_AGAIN",
+    ].includes(code) ||
+    /Connection terminated unexpectedly|Connection terminated|timeout|socket hang up/i.test(message)
+  );
+}
+
+/**
+ * Extract a stable error message for logging.
+ * @param error Unknown thrown value.
+ * @returns Human-readable message.
+ */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Wait for a short backoff interval.
+ * @param ms Milliseconds to wait.
+ * @returns Promise that resolves after the delay.
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 const BRIDGE_TABLE_SQL = `

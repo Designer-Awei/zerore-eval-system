@@ -52,6 +52,8 @@ export async function POST(request: Request) {
             onboardingAnswers: body.scenarioContext.onboardingAnswers,
           }
         : undefined,
+      structuredTaskMetrics: body.structuredTaskMetrics,
+      trace: body.trace,
       persistArtifact: body.persistArtifact ?? Boolean(body.artifactBaseName),
       artifactBaseName: body.artifactBaseName,
     });

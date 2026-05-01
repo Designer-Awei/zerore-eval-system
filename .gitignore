@@ -37,6 +37,9 @@ yarn-error.log*
 # Supabase local CLI cache
 supabase/.temp/
 
+# local workspace runtime data
+/workspaces/
+
 # vercel
 .vercel
 

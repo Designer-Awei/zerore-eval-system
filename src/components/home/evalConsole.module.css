@@ -279,6 +279,67 @@
   gap: 14px;
 }
 
+.sampleDatasetCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.sampleDatasetCard strong {
+  display: block;
+  margin-top: 4px;
+  color: #0b0b0b;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sampleDatasetCard p {
+  margin-top: 6px;
+  color: #646464;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sampleDatasetEyebrow {
+  color: #777777;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sampleDatasetActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.downloadLinkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 14px;
+  color: #0b0b0b;
+  background: #f8f8f8;
+  font-size: 13px;
+  font-weight: 700;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease;
+}
+
+.downloadLinkButton:hover {
+  transform: translateY(-1px);
+  border-color: #0b0b0b;
+}
+
 .uploadRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
@@ -459,6 +520,277 @@
   gap: 10px;
   color: #6b6b6b;
   font-size: 12px;
+}
+
+.mappingBox {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 16px;
+  background: #fafafa;
+}
+
+.mappingHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mappingHeader div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mappingHeader strong {
+  color: #0b0b0b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mappingHeader span,
+.mappingSummary {
+  color: #6b6b6b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mappingAgentStatus {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4a4a4a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mappingSummary {
+  margin: 0;
+}
+
+.capabilityGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.capabilityPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.capabilityEnabled {
+  border: 1px solid rgb(22 101 52 / 0.18);
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.capabilityDisabled {
+  border: 1px solid rgb(120 113 108 / 0.18);
+  background: #f5f5f4;
+  color: #57534e;
+}
+
+.mappingList {
+  display: grid;
+  gap: 6px;
+}
+
+.mappingRow {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.6fr) minmax(0, 1.4fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgb(0 0 0 / 0.06);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.mappingRow span {
+  color: #4a4a4a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mappingRow code {
+  color: #0b0b0b;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mappingWarnings,
+.mappingQuestions {
+  display: grid;
+  gap: 6px;
+  color: #6b6b6b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.metricRegistryStack {
+  display: grid;
+  gap: 16px;
+}
+
+.metricRegistrySummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metricRegistrySummary div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgb(0 0 0 / 0.06);
+  border-radius: 14px;
+  background: #fafafa;
+}
+
+.metricRegistrySummary span,
+.metricRegistrySummary small {
+  color: #6b6b6b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.metricRegistrySummary strong {
+  color: #0b0b0b;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.metricGroup {
+  display: grid;
+  gap: 10px;
+}
+
+.metricGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metricGroupHeader strong {
+  color: #0b0b0b;
+  font-size: 13px;
+}
+
+.metricGroupHeader span {
+  color: #8a8a8a;
+  font-size: 12px;
+}
+
+.metricResultGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metricResultCard {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgb(0 0 0 / 0.07);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.metricResultTopline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metricResultTopline div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metricResultTopline strong {
+  color: #0b0b0b;
+  font-size: 13px;
+}
+
+.metricResultTopline span,
+.metricResultCard p {
+  margin: 0;
+  color: #6b6b6b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.metricResultScore {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metricResultScore strong {
+  color: #0b0b0b;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.metricResultScore span {
+  color: #6b6b6b;
+  font-size: 12px;
+}
+
+.metricStatusPill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.metricStatusReady {
+  border: 1px solid rgb(22 101 52 / 0.18);
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.metricStatusDegraded {
+  border: 1px solid rgb(161 98 7 / 0.2);
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.metricStatusSkipped {
+  border: 1px solid rgb(120 113 108 / 0.18);
+  background: #f5f5f4;
+  color: #57534e;
+}
+
+.metricStatusError {
+  border: 1px solid rgb(185 28 28 / 0.18);
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .controlRow {
@@ -1373,6 +1705,10 @@
     grid-template-columns: 1fr;
   }
 
+  .sampleDatasetCard {
+    grid-template-columns: 1fr;
+  }
+
   .uploadZone {
     grid-template-columns: 1fr;
   }
@@ -1384,7 +1720,9 @@
   .metricGrid,
   .chartGrid,
   .heroMetaGrid,
-  .onboardingGrid {
+  .onboardingGrid,
+  .metricRegistrySummary,
+  .metricResultGrid {
     grid-template-columns: 1fr;
   }
 

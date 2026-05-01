@@ -3,6 +3,7 @@
  */
 
 import type { ObjectiveMetrics, SubjectiveMetrics, SummaryCard } from "@/types/pipeline";
+import type { StructuredTaskMetrics } from "@/types/rich-conversation";
 import type { ScenarioEvaluation } from "@/types/scenario";
 
 /**
@@ -20,6 +21,7 @@ export function buildSummaryCards(
   messageCount: number,
   scenarioEvaluation?: ScenarioEvaluation | null,
   badCaseCount = 0,
+  structuredTaskMetrics?: StructuredTaskMetrics,
 ): SummaryCard[] {
   const empathyScore =
     subjectiveMetrics.dimensions.find((item) => item.dimension === "共情程度")?.score ?? 0;
@@ -86,6 +88,29 @@ export function buildSummaryCards(
       value: `${Math.round(scenarioEvaluation.averageScore * 100)}%`,
       hint: `${scenarioEvaluation.displayName} 的业务映射均分`,
     });
+  }
+
+  if (structuredTaskMetrics?.status === "ready") {
+    cards.push({
+      key: "structuredEval",
+      label: "结构化标注",
+      value: `${structuredTaskMetrics.serviceCallCount}`,
+      hint: `Service call ${structuredTaskMetrics.serviceCallCount} 次，Slot ${structuredTaskMetrics.slotMentionCount} 个，State ${structuredTaskMetrics.dialogueStateCount} 条`,
+    });
+    cards.push({
+      key: "serviceGrounding",
+      label: "调用参数追溯",
+      value: `${Math.round(structuredTaskMetrics.serviceCallGroundingRate * 100)}%`,
+      hint: "service_call 参数是否能从 dialogue state 中追溯",
+    });
+    if (structuredTaskMetrics.schemaServiceCount) {
+      cards.push({
+        key: "schemaCompliance",
+        label: "Schema 合法率",
+        value: `${Math.round((structuredTaskMetrics.schemaSlotCoverageRate ?? 0) * 100)}%`,
+        hint: `${structuredTaskMetrics.schemaServiceCount} 个 service schema，未知 slot ${structuredTaskMetrics.unknownSlotReferenceCount ?? 0} 个`,
+      });
+    }
   }
 
   if (badCaseCount > 0) {

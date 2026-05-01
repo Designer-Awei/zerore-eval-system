@@ -24,11 +24,13 @@ npm run calibration:drift
 npm run gold:v2:scaffold -- --assignees alice,bob --reviewers lead
 # 填写 calibration/gold-sets/v2/label-drafts/*.json，并将审核通过项设为 approved
 npm run gold:v2:import
+npm run gold:v2:coverage
 npm run calibration:judge -- --cases calibration/gold-sets/v2/cases.jsonl
 npm run calibration:agreement -- --labels calibration/gold-sets/v2/labels.jsonl
 ```
 
 导入脚本只会把 `reviewStatus=approved` 且证据、分数、reviewer 信息完整的 draft 写入 `labels.jsonl`。
+覆盖报告会输出 `coverage-report.md`，用于追踪 80 条候选目标、approved label 缺口、scene/tag 覆盖和标注分工。
 
 后续要按补充方案扩到更高覆盖度，并补齐：
 - 更大的 bad case 覆盖面

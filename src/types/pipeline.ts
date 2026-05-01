@@ -3,11 +3,15 @@
  */
 
 import type { ScenarioEvaluation } from "@/types/scenario";
+import type { StructuredTaskMetrics } from "@/types/rich-conversation";
+import type { EvalMetricRegistrySnapshot } from "@/types/eval-metric";
+import type { EvalTrace } from "@/types/eval-trace";
+import type { EvalCaseBundle } from "@/types/eval-case";
 
 /**
  * Supported upload formats for raw chatlog ingestion.
  */
-export type UploadFormat = "csv" | "json" | "txt" | "md";
+export type UploadFormat = "csv" | "json" | "jsonl" | "txt" | "md";
 
 /**
  * Supported message roles.
@@ -373,6 +377,7 @@ export type IngestResponse = {
   rawRows: RawChatlogRow[];
   canonicalCsv: string;
   previewTop20: string[];
+  structuredTaskMetrics?: StructuredTaskMetrics;
   ingestMeta: {
     sessions: number;
     rows: number;
@@ -401,6 +406,10 @@ export type EvaluateResponse = {
   artifactPath?: string;
   objectiveMetrics: ObjectiveMetrics;
   subjectiveMetrics: SubjectiveMetrics;
+  structuredTaskMetrics?: StructuredTaskMetrics;
+  trace?: EvalTrace;
+  evalCaseBundle?: EvalCaseBundle;
+  metricRegistry?: EvalMetricRegistrySnapshot;
   scenarioEvaluation: ScenarioEvaluation | null;
   badCaseAssets: BadCaseAsset[];
   charts: ChartPayload[];

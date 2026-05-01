@@ -44,8 +44,8 @@ export async function requestSiliconFlowChatCompletion(
   const baseUrl = config.baseUrl;
   const model = config.model;
 
-  if (!apiKey) {
-    throw new Error("未配置 SILICONFLOW_API_KEY。");
+  if (!isUsableApiKey(apiKey)) {
+    throw new Error("未配置有效的 SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
   }
 
   const controller = new AbortController();
@@ -55,24 +55,29 @@ export async function requestSiliconFlowChatCompletion(
 
   try {
     console.info(`${logPrefix} START model=${model} messages=${messages.length}`);
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      stream: false,
+      temperature: 0.2,
+      top_p: 0.7,
+      max_tokens: 1200,
+      response_format: {
+        type: "json_object",
+      },
+    };
+    const enableThinking = resolveOptionalBoolean(process.env.SILICONFLOW_ENABLE_THINKING);
+    if (typeof enableThinking === "boolean") {
+      requestBody.enable_thinking = enableThinking;
+    }
+
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        enable_thinking: false,
-        temperature: 0.2,
-        top_p: 0.7,
-        max_tokens: 1200,
-        response_format: {
-          type: "json_object",
-        },
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
       cache: "no-store",
     });
@@ -158,8 +163,8 @@ function getSiliconFlowRuntimeConfig(): SiliconFlowRuntimeConfig {
   const baseUrl = process.env.SILICONFLOW_BASE_URL ?? fallback.baseUrl ?? "https://api.siliconflow.cn/v1";
   const model = process.env.SILICONFLOW_MODEL ?? fallback.model ?? "Qwen/Qwen3.5-27B";
 
-  if (!apiKey) {
-    throw new Error("未配置 SILICONFLOW_API_KEY。");
+  if (!isUsableApiKey(apiKey)) {
+    throw new Error("未配置有效的 SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
   }
 
   if (!process.env.SILICONFLOW_API_KEY && fallback.apiKey && !hasLoggedEnvExampleFallback) {
@@ -172,6 +177,36 @@ function getSiliconFlowRuntimeConfig(): SiliconFlowRuntimeConfig {
     baseUrl,
     model,
   };
+}
+
+/**
+ * Validate that a configured API key is not empty or a documented placeholder.
+ * @param value Raw API key value.
+ * @returns Whether the key can be used for a provider request.
+ */
+function isUsableApiKey(value: string | undefined): value is string {
+  if (!value?.trim()) {
+    return false;
+  }
+  return !/^(YOUR_API_KEY_HERE|REPLACE_ME|TODO|CHANGEME)$/i.test(value.trim());
+}
+
+/**
+ * Parse an optional boolean environment variable.
+ * @param value Raw environment variable value.
+ * @returns Boolean when explicitly configured, otherwise undefined.
+ */
+function resolveOptionalBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+  if (/^(1|true|yes)$/i.test(value.trim())) {
+    return true;
+  }
+  if (/^(0|false|no)$/i.test(value.trim())) {
+    return false;
+  }
+  return undefined;
 }
 
 /**

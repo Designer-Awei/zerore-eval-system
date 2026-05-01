@@ -1,6 +1,8 @@
 :root {
   --background: #030712;
   --foreground: #eef5ff;
+  --font-geist-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", Arial,
+    Helvetica, sans-serif;
 }
 
 html {
