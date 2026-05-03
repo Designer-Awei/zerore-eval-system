@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import styles from "./appShell.module.css";
 
 const NAV_ITEMS = [
+  { label: "Copilot", href: "/copilot", match: "/copilot" },
   { label: "工作台", href: "/workbench", match: "/workbench" },
   { label: "案例池", href: "/datasets", match: "/datasets" },
   { label: "在线评测", href: "/online-eval", match: "/online-eval" },

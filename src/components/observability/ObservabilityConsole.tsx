@@ -181,7 +181,7 @@ export function ObservabilityConsole() {
             <h2 className={styles.listTitle}>最近 trace（{traces.length}）</h2>
             {traces.length === 0 ? (
               <div className={styles.empty}>
-                暂无 trace。点击右上角"注入示例 trace"，或参考{" "}
+                暂无 trace。点击右上角&quot;注入示例 trace&quot;，或参考{" "}
                 <a href="/integrations">集成文档</a> 接入生产 agent。
               </div>
             ) : (

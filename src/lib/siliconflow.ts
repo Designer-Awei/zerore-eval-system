@@ -117,12 +117,58 @@ export function parseJsonObjectFromLlmOutput(value: string): unknown {
   try {
     return JSON.parse(normalized);
   } catch {
-    const match = normalized.match(/\{[\s\S]*\}/);
-    if (!match) {
+    const jsonObject = extractFirstBalancedJsonObject(normalized);
+    if (!jsonObject) {
       throw new Error("LLM 输出中未找到 JSON 对象。");
     }
-    return JSON.parse(match[0]);
+    return JSON.parse(jsonObject);
   }
+}
+
+/**
+ * Extract the first balanced JSON object from model output.
+ * @param value Raw model output that may include extra text after JSON.
+ * @returns First complete JSON object string, or null when absent.
+ */
+function extractFirstBalancedJsonObject(value: string): string | null {
+  const start = value.indexOf("{");
+  if (start < 0) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return value.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -150,24 +196,37 @@ type SiliconFlowRuntimeConfig = {
   model: string;
 };
 
-let cachedEnvExampleConfig: Partial<SiliconFlowRuntimeConfig> | null = null;
+let cachedFileConfig: Partial<SiliconFlowRuntimeConfig> | null = null;
+let cachedEnvConfig: Partial<SiliconFlowRuntimeConfig> | null = null;
 let hasLoggedEnvExampleFallback = false;
+let hasLoggedEnvFallback = false;
 
 /**
- * Resolve runtime config from process.env first, then local example file fallback.
+ * Resolve runtime config from process.env first, then local .env, then example fallback.
  * @returns Stable SiliconFlow runtime config.
  */
 function getSiliconFlowRuntimeConfig(): SiliconFlowRuntimeConfig {
+  const envConfig = readEnvConfig();
   const fallback = readEnvExampleConfig();
-  const apiKey = process.env.SILICONFLOW_API_KEY ?? fallback.apiKey;
-  const baseUrl = process.env.SILICONFLOW_BASE_URL ?? fallback.baseUrl ?? "https://api.siliconflow.cn/v1";
-  const model = process.env.SILICONFLOW_MODEL ?? fallback.model ?? "Qwen/Qwen3.5-27B";
+  const apiKey = process.env.SILICONFLOW_API_KEY ?? envConfig.apiKey ?? fallback.apiKey;
+  const baseUrl =
+    process.env.SILICONFLOW_BASE_URL ??
+    envConfig.baseUrl ??
+    fallback.baseUrl ??
+    "https://api.siliconflow.cn/v1";
+  const model =
+    process.env.SILICONFLOW_MODEL ?? envConfig.model ?? fallback.model ?? "Qwen/Qwen3.5-27B";
 
   if (!isUsableApiKey(apiKey)) {
     throw new Error("未配置有效的 SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
   }
 
-  if (!process.env.SILICONFLOW_API_KEY && fallback.apiKey && !hasLoggedEnvExampleFallback) {
+  if (!process.env.SILICONFLOW_API_KEY && envConfig.apiKey && !hasLoggedEnvFallback) {
+    console.warn("[LLM] Using .env fallback for SiliconFlow credentials.");
+    hasLoggedEnvFallback = true;
+  }
+
+  if (!process.env.SILICONFLOW_API_KEY && !envConfig.apiKey && fallback.apiKey && !hasLoggedEnvExampleFallback) {
     console.warn("[LLM] Using .env.example fallback for SiliconFlow credentials.");
     hasLoggedEnvExampleFallback = true;
   }
@@ -210,27 +269,48 @@ function resolveOptionalBoolean(value: string | undefined): boolean | undefined 
 }
 
 /**
- * Read root .env.example as a local fallback source.
+ * Read root .env as a local runtime source.
+ * @returns Parsed partial config from .env.
+ */
+function readEnvConfig(): Partial<SiliconFlowRuntimeConfig> {
+  if (cachedEnvConfig) {
+    return cachedEnvConfig;
+  }
+
+  cachedEnvConfig = readSiliconFlowConfigFromFile(".env");
+  return cachedEnvConfig;
+}
+
+/**
+ * Read root .env.example as a documented fallback source.
  * @returns Parsed partial config from .env.example.
  */
 function readEnvExampleConfig(): Partial<SiliconFlowRuntimeConfig> {
-  if (cachedEnvExampleConfig) {
-    return cachedEnvExampleConfig;
+  if (cachedFileConfig) {
+    return cachedFileConfig;
   }
 
-  const envExamplePath = path.join(process.cwd(), ".env.example");
-  if (!existsSync(envExamplePath)) {
-    cachedEnvExampleConfig = {};
-    return cachedEnvExampleConfig;
+  cachedFileConfig = readSiliconFlowConfigFromFile(".env.example");
+  return cachedFileConfig;
+}
+
+/**
+ * Read SiliconFlow runtime keys from one env-style file.
+ * @param fileName Root-level env file name.
+ * @returns Parsed partial SiliconFlow config.
+ */
+function readSiliconFlowConfigFromFile(fileName: string): Partial<SiliconFlowRuntimeConfig> {
+  const envPath = path.join(/* turbopackIgnore: true */ process.cwd(), fileName);
+  if (!existsSync(envPath)) {
+    return {};
   }
 
-  const parsed = parseSimpleEnvFile(readFileSync(envExamplePath, "utf8"));
-  cachedEnvExampleConfig = {
+  const parsed = parseSimpleEnvFile(readFileSync(envPath, "utf8"));
+  return {
     apiKey: parsed.SILICONFLOW_API_KEY,
     baseUrl: parsed.SILICONFLOW_BASE_URL,
     model: parsed.SILICONFLOW_MODEL,
   };
-  return cachedEnvExampleConfig;
 }
 
 /**

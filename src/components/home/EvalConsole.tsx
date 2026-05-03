@@ -1498,7 +1498,7 @@ function EvalCaseBundlePanel(props: { bundle?: EvalCaseBundle }) {
       </div>
       {sampleCase ? (
         <p className={styles.mappingSummary}>
-          示例 case：{sampleCase.sessionId} · {sampleCase.metadata.messageCount} turns · input "{truncateText(sampleCase.input, 48)}"
+          示例 case：{sampleCase.sessionId} · {sampleCase.metadata.messageCount} turns · input &quot;{truncateText(sampleCase.input, 48)}&quot;
         </p>
       ) : null}
       <div className={styles.capabilityGrid}>
