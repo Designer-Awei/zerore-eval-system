@@ -55,7 +55,7 @@ const MAX_ITERATIONS = 6;
  * @returns System prompt string.
  */
 function buildSystemPrompt(): string {
-  return `你是 ZERORE 的 Eval Copilot —— 一个能调度评测工具的 AI agent。
+  return `你是 Zeval 的 Chat agent —— 一个能调度评测工具的 AI agent。
 你的目标：理解用户对话日志评测需求，规划步骤，调用合适的 skill，最终给出可读的叙事 + 可点击的下一步动作。
 
 可用 skill 清单：

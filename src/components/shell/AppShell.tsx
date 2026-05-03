@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import styles from "./appShell.module.css";
 
 const NAV_ITEMS = [
-  { label: "Copilot", href: "/copilot", match: "/copilot" },
+  { label: "Chat", href: "/chat", match: "/chat" },
   { label: "工作台", href: "/workbench", match: "/workbench" },
   { label: "案例池", href: "/datasets", match: "/datasets" },
   { label: "在线评测", href: "/online-eval", match: "/online-eval" },
@@ -27,42 +27,47 @@ type AppShellProps = {
 };
 
 /**
- * Render the unified application shell with sticky top navigation.
+ * Render the unified application shell with left sidebar navigation.
  */
 export function AppShell({ children, subheader }: AppShellProps) {
   const pathname = usePathname();
 
   return (
     <div className={styles.shell}>
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <Link href="/" className={styles.brand} aria-label="ZERORE home">
-            <span className={styles.brandMark}>ZE</span>
-            <span className={styles.brandWord}>ZERORE</span>
+      <aside className={styles.sidebar}>
+        <Link href="/" className={styles.brand} aria-label="Zeval home">
+          <span className={styles.brandMark}>ZE</span>
+          <span className={styles.brandText}>
+            <span className={styles.brandWord}>Zeval</span>
+            <span className={styles.brandSub}>Eval OS</span>
+          </span>
+        </Link>
+        <nav className={styles.nav} aria-label="primary">
+          {NAV_ITEMS.map((item) => {
+            const active =
+              pathname?.startsWith(item.match) || (item.href === "/chat" && pathname?.startsWith("/copilot"));
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
+              >
+                <span className={styles.navDot} aria-hidden="true" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className={styles.sidebarFooter}>
+          <Link href="/" className={styles.homeLink}>
+            产品首页
           </Link>
-          <nav className={styles.nav} aria-label="primary">
-            {NAV_ITEMS.map((item) => {
-              const active = pathname?.startsWith(item.match);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`${styles.navLink} ${active ? styles.navLinkActive : ""}`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className={styles.headerActions}>
-            <Link href="/" className={styles.homeLink}>
-              ← 产品首页
-            </Link>
-          </div>
         </div>
+      </aside>
+      <div className={styles.content}>
         {subheader ? <div className={styles.subheader}>{subheader}</div> : null}
-      </header>
-      <main className={styles.main}>{children}</main>
+        <main className={styles.main}>{children}</main>
+      </div>
     </div>
   );
 }

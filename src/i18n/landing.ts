@@ -101,7 +101,7 @@ const ZH: LandingCopy = {
       line2Post: "。",
     },
     lead: {
-      intro: "ZERORE 不是再做一个 eval dashboard。它把真实 bad case 自动编译为",
+      intro: "Zeval 不是再做一个 eval dashboard。它把真实 bad case 自动编译为",
       bold: " 证据、调优包和回归验证",
       outro: "，让 AI 产品的每次失败都进入下一次发版前的质量闭环。",
     },
@@ -115,7 +115,7 @@ const ZH: LandingCopy = {
   capabilitiesSection: {
     eyebrow: "Capabilities",
     title: "从真实对话问题，到可执行的修复任务。",
-    lead: "ZERORE 把每一次失败会话变成一个带证据的修复任务，直接对接 Claude Code / Codex 的 agent 执行能力。",
+    lead: "Zeval 把每一次失败会话变成一个带证据的修复任务，直接对接 Claude Code / Codex 的 agent 执行能力。",
   },
   capabilities: [
     {
@@ -183,7 +183,7 @@ const ZH: LandingCopy = {
   testimonialsSection: { eyebrow: "Testimonials", title: "已经把质量闭环跑通的团队怎么说。" },
   testimonials: [
     {
-      quote: "以前我们 release 前只靠研发凭感觉看几条对话；用 ZERORE 之后每次发版都带着一份由调优包证明过的回归报告。",
+      quote: "以前我们 release 前只靠研发凭感觉看几条对话；用 Zeval 之后每次发版都带着一份由调优包证明过的回归报告。",
       author: "产品负责人 · ToB 客服 Agent",
     },
     {
@@ -194,9 +194,9 @@ const ZH: LandingCopy = {
   faqSection: { eyebrow: "FAQ", title: "常见问题" },
   faq: [
     {
-      question: "ZERORE 和传统 eval 平台有什么区别？",
+      question: "Zeval 和传统 eval 平台有什么区别？",
       answer:
-        "传统 eval 提供的是“给定数据集 + 给定指标”的打分面板。ZERORE 的出发点是生产 bad case → 证据包 → 调优任务 → 回放验证的闭环，面向的是“下一次发版前把这次问题修掉”。",
+        "传统 eval 提供的是“给定数据集 + 给定指标”的打分面板。Zeval 的出发点是生产 bad case → 证据包 → 调优任务 → 回放验证的闭环，面向的是“下一次发版前把这次问题修掉”。",
     },
     {
       question: "需要接入内部系统吗？",
@@ -222,7 +222,7 @@ const ZH: LandingCopy = {
   cta: {
     eyebrow: "Less dashboards. More fixes.",
     title: "不要再靠感觉发版。",
-    lead: "把一批真实对话带进来，让 ZERORE 自动告诉你哪一轮出了问题、怎么修、改完是否真的变好。",
+    lead: "把一批真实对话带进来，让 Zeval 自动告诉你哪一轮出了问题、怎么修、改完是否真的变好。",
   },
   footer: {
     tagline: "AI Quality Loop For Agent Products",
@@ -254,7 +254,7 @@ const ZH: LandingCopy = {
         ],
       },
     },
-    copyright: (year) => `© ${year} ZERORE · 保留所有权利。`,
+    copyright: (year) => `© ${year} Zeval · 保留所有权利。`,
     builtFor: "为构建 agent 产品的团队而生。",
   },
 };
@@ -287,7 +287,7 @@ const EN: LandingCopy = {
       line2Post: ".",
     },
     lead: {
-      intro: "ZERORE isn't another eval dashboard. It compiles real bad cases into",
+      intro: "Zeval isn't another eval dashboard. It compiles real bad cases into",
       bold: " evidence, remediation packages, and regression checks",
       outro: ", so every failure feeds back into the quality loop before your next ship.",
     },
@@ -301,7 +301,7 @@ const EN: LandingCopy = {
   capabilitiesSection: {
     eyebrow: "Capabilities",
     title: "From real conversation problems to executable fix tasks.",
-    lead: "ZERORE turns each failed session into an evidence-backed fix task that plugs directly into Claude Code / Codex.",
+    lead: "Zeval turns each failed session into an evidence-backed fix task that plugs directly into Claude Code / Codex.",
   },
   capabilities: [
     {
@@ -370,7 +370,7 @@ const EN: LandingCopy = {
   testimonials: [
     {
       quote:
-        "Releases used to mean engineers eyeballing a few transcripts. With ZERORE every release ships with a regression report proven by a remediation package.",
+        "Releases used to mean engineers eyeballing a few transcripts. With Zeval every release ships with a regression report proven by a remediation package.",
       author: "Head of Product · B2B Support Agent",
     },
     {
@@ -382,9 +382,9 @@ const EN: LandingCopy = {
   faqSection: { eyebrow: "FAQ", title: "Frequently asked" },
   faq: [
     {
-      question: "How is ZERORE different from a traditional eval platform?",
+      question: "How is Zeval different from a traditional eval platform?",
       answer:
-        "Traditional eval gives you a 'fixed dataset + fixed metric' scoreboard. ZERORE starts from production bad cases → evidence packs → fix tasks → replay verification — closing the loop on 'fix this before the next release'.",
+        "Traditional eval gives you a 'fixed dataset + fixed metric' scoreboard. Zeval starts from production bad cases → evidence packs → fix tasks → replay verification — closing the loop on 'fix this before the next release'.",
     },
     {
       question: "Do I need to integrate internal systems?",
@@ -410,7 +410,7 @@ const EN: LandingCopy = {
   cta: {
     eyebrow: "Less dashboards. More fixes.",
     title: "Stop shipping on vibes.",
-    lead: "Bring in real conversations and let ZERORE tell you which turn broke, how to fix it, and whether the fix actually worked.",
+    lead: "Bring in real conversations and let Zeval tell you which turn broke, how to fix it, and whether the fix actually worked.",
   },
   footer: {
     tagline: "AI Quality Loop For Agent Products",
@@ -442,7 +442,7 @@ const EN: LandingCopy = {
         ],
       },
     },
-    copyright: (year) => `© ${year} ZERORE · All rights reserved.`,
+    copyright: (year) => `© ${year} Zeval · All rights reserved.`,
     builtFor: "Built for teams that ship agent products.",
   },
 };

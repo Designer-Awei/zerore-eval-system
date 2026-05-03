@@ -22,7 +22,7 @@ const SNIPPETS: Snippet[] = [
     id: "sdk-evaluate",
     label: "Node SDK · evaluate",
     language: "ts",
-    description: "把会话日志直接交给 ZERORE 评估，返回 baseline + extendedMetrics。",
+    description: "把会话日志直接交给 Zeval 评估，返回 baseline + extendedMetrics。",
     code: `import { ZeroreClient } from "@zerore/sdk";
 
 const zerore = new ZeroreClient({
@@ -47,7 +47,7 @@ console.log(result.extendedMetrics?.faithfulness);`,
     id: "langchain",
     label: "LangChain · Callback",
     language: "ts",
-    description: "把任意 LangChain 链路接入 ZERORE，自动转 OTel trace 实时上报。",
+    description: "把任意 LangChain 链路接入 Zeval，自动转 OTel trace 实时上报。",
     code: `import { ChatOpenAI } from "@langchain/openai";
 import { langchainCallbackToOtel } from "@zerore/sdk/adapters/langchain";
 
@@ -182,7 +182,7 @@ export function IntegrationsConsole() {
         <header className={styles.header}>
           <h1 className={styles.title}>集成与 SDK</h1>
           <p className={styles.sub}>
-            一行代码把任意 AI 应用接入 ZERORE。SDK / CLI / LangChain / OpenAI Agents / REST 全支持。
+            一行代码把任意 AI 应用接入 Zeval。SDK / CLI / LangChain / OpenAI Agents / REST 全支持。
           </p>
         </header>
 

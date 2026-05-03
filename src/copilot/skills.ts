@@ -1,7 +1,7 @@
 /**
  * @fileoverview Eval Copilot Skill Registry.
  *
- * 把 ZERORE 现有的内部 API 包装成 Copilot 可调度的 skill。每个 skill 有：
+ * 把 Zeval 现有的内部 API 包装成 Chat 可调度的 skill。每个 skill 有：
  *   - name / description / paramsSchema：给 LLM 看的契约
  *   - execute()：实际调度内部模块（直接调 pipeline，不走 HTTP，省一次序列化）
  *
@@ -74,7 +74,7 @@ const runEvaluateParams = z.object({
 
 const runEvaluateSkill: Skill = {
   name: "run_evaluate",
-  description: "对一批对话日志运行 ZERORE 评估管线，返回核心指标 + bad case + 扩展指标。",
+  description: "对一批对话日志运行 Zeval 评估管线，返回核心指标 + bad case + 扩展指标。",
   paramsSchema: runEvaluateParams,
   async execute(params, ctx) {
     const args = runEvaluateParams.parse(params);

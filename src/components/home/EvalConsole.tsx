@@ -602,7 +602,7 @@ export function EvalConsole() {
         <main className={styles.main}>
           <section className={styles.hero}>
             <div className={styles.heroContent}>
-              <p className={styles.badge}>ZERORE EVAL · 工作台</p>
+              <p className={styles.badge}>Zeval · 工作台</p>
               <h1 className={styles.heroTitle}>{getStepHeroTitle(currentStep)}</h1>
               <p className={styles.heroCopy}>{getStepHeroCopy(currentStep)}</p>
               <div className={styles.heroTagRow}>

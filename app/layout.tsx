@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ZERORE",
+  title: "Zeval",
   description: "把真实 AI 对话 bad case 转成证据、调优包与验证结果的质量闭环系统。",
 };
 

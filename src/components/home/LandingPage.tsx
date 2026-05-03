@@ -46,9 +46,9 @@ export function LandingPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/" className={styles.brand} aria-label="ZERORE home">
+        <Link href="/" className={styles.brand} aria-label="Zeval home">
           <span className={styles.brandMark}>ZE</span>
-          <span className={styles.brandWord}>ZERORE</span>
+          <span className={styles.brandWord}>Zeval</span>
         </Link>
         <nav className={styles.nav} aria-label="primary">
           {copy.nav.map((item) => (
@@ -235,7 +235,7 @@ export function LandingPage() {
           <div className={styles.footerBrand}>
             <span className={styles.brandMark}>ZE</span>
             <div>
-              <strong>ZERORE</strong>
+              <strong>Zeval</strong>
               <p>{copy.footer.tagline}</p>
             </div>
           </div>

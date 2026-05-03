@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 
 /**
- * Hand-written OpenAPI 3.0 spec for the public ZERORE HTTP surface.
+ * Hand-written OpenAPI 3.0 spec for the public Zeval HTTP surface.
  *
  * 这里只列出对外稳定的核心端点；内部 db/auth 工具不暴露。
  */
 const OPENAPI_SPEC = {
   openapi: "3.0.3",
   info: {
-    title: "ZERORE Eval HTTP API",
+    title: "Zeval HTTP API",
     version: "0.1.0",
     description:
-      "ZERORE 提供从 chatlog 上传到调优包生成、回放验证、trace 接入的完整闭环。\n本文档列出对外稳定的端点，可作为 Postman / SDK 生成 / Claude Code 接入参考。",
+      "Zeval 提供从 chatlog 上传到调优包生成、回放验证、trace 接入的完整闭环。\n本文档列出对外稳定的端点，可作为 Postman / SDK 生成 / Claude Code 接入参考。",
   },
   servers: [{ url: "http://127.0.0.1:3010", description: "Local dev" }],
   paths: {
