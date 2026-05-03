@@ -68,7 +68,10 @@ const PROCESSING_LOGS = [
 ];
 const ALLOWED_EXTENSIONS = new Set(["csv", "json", "jsonl", "txt", "md"]);
 const MAX_UPLOAD_SIZE_MB = 5;
-const EVAL_CONSOLE_SNAPSHOT_KEY = "zerore:evalConsoleSnapshot:v2";
+const EVAL_CONSOLE_SNAPSHOT_KEY = "zeval:evalConsoleSnapshot:v2";
+const LEGACY_EVAL_CONSOLE_SNAPSHOT_KEY = "zerore:evalConsoleSnapshot:v2";
+const LAST_CUSTOMER_ID_KEY = "zeval:lastCustomerId";
+const LEGACY_LAST_CUSTOMER_ID_KEY = "zerore:lastCustomerId";
 const SGD_SAMPLE_DATASET = {
   fileName: "sgd-restaurants-sample.json",
   path: "/datasets/sgd-restaurants-sample.json",
@@ -131,12 +134,16 @@ export function EvalConsole() {
   const [resultTab, setResultTab] = useState<ResultTabKey>("summary");
 
   useEffect(() => {
-    const lastCustomerId = window.localStorage.getItem("zerore:lastCustomerId");
+    const lastCustomerId =
+      window.localStorage.getItem(LAST_CUSTOMER_ID_KEY) ??
+      window.localStorage.getItem(LEGACY_LAST_CUSTOMER_ID_KEY);
     if (lastCustomerId) {
       setBaselineCustomerId(lastCustomerId);
     }
 
-    const snapshotRaw = window.sessionStorage.getItem(EVAL_CONSOLE_SNAPSHOT_KEY);
+    const snapshotRaw =
+      window.sessionStorage.getItem(EVAL_CONSOLE_SNAPSHOT_KEY) ??
+      window.sessionStorage.getItem(LEGACY_EVAL_CONSOLE_SNAPSHOT_KEY);
     if (!snapshotRaw) {
       snapshotHydratedRef.current = true;
       return;
@@ -450,7 +457,7 @@ export function EvalConsole() {
       if (!response.ok) {
         throw new Error(data.detail ?? data.error ?? "保存基线失败");
       }
-      window.localStorage.setItem("zerore:lastCustomerId", baselineCustomerId.trim());
+      window.localStorage.setItem(LAST_CUSTOMER_ID_KEY, baselineCustomerId.trim());
       setNotice(
         `已保存工作台基线：customerId=${baselineCustomerId.trim()}，runId=${data.runId ?? evaluateResult.runId}。可前往「在线评测」选择该基线回放。`,
       );

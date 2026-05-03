@@ -134,6 +134,11 @@ export type JudgeRunRecord = {
   sessionId: string;
   judgeId: string;
   model: string;
+  judgeProfile?: {
+    profileVersion: string;
+    provider: string;
+    promptVersions: Record<string, string>;
+  };
   useLlm: boolean;
   runAt: string;
   dimensions: SubjectiveDimensionResult[];

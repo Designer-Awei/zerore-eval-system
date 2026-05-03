@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ZevalLogo } from "@/components/brand/ZevalLogo";
 import { LANDING_COPY, type Locale } from "@/i18n/landing";
 import styles from "./landingPage.module.css";
 
-const LOCALE_STORAGE_KEY = "zerore:locale";
+const LOCALE_STORAGE_KEY = "zeval:locale";
+const LEGACY_LOCALE_STORAGE_KEY = "zerore:locale";
 
 /**
  * Read the persisted landing page locale, falling back to Chinese for first-time visitors.
@@ -17,7 +19,9 @@ function getInitialLocale(): Locale {
     return "zh";
   }
 
-  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  const stored =
+    window.localStorage.getItem(LOCALE_STORAGE_KEY) ??
+    window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY);
   return stored === "zh" || stored === "en" ? stored : "zh";
 }
 
@@ -47,8 +51,7 @@ export function LandingPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <Link href="/" className={styles.brand} aria-label="Zeval home">
-          <span className={styles.brandMark}>ZE</span>
-          <span className={styles.brandWord}>Zeval</span>
+          <ZevalLogo compact />
         </Link>
         <nav className={styles.nav} aria-label="primary">
           {copy.nav.map((item) => (

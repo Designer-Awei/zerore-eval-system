@@ -94,7 +94,7 @@ export function ObservabilityConsole() {
             kind: "agent",
             startTime: new Date().toISOString(),
             endTime: new Date(Date.now() + 1000).toISOString(),
-            attributes: { system: "zerore-demo" },
+            attributes: { system: "zeval-demo" },
           },
           {
             spanId: "s2",

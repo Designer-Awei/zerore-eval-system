@@ -15,4 +15,5 @@ export const validationRunCreateBodySchema = z.object({
   sampleBatchId: z.string().min(1).optional(),
   useLlm: z.boolean().optional().default(true),
   replyTimeoutMs: z.number().int().min(3000).max(120000).optional(),
+  asyncMode: z.boolean().optional(),
 });

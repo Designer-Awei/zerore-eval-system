@@ -113,12 +113,12 @@ export class PostgresDatabase implements ZeroreDatabase {
 export function createPostgresDatabaseFromEnv(): PostgresDatabase {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error("DATABASE_URL is required when ZERORE_DATABASE_ADAPTER=postgres.");
+    throw new Error("DATABASE_URL is required when ZEVAL_DATABASE_ADAPTER=postgres.");
   }
   return new PostgresDatabase({
     connectionString,
     ssl: resolveSslConfig(connectionString),
-    max: Number(process.env.ZERORE_POSTGRES_POOL_MAX ?? 5),
+    max: Number(process.env.ZEVAL_POSTGRES_POOL_MAX ?? process.env.ZERORE_POSTGRES_POOL_MAX ?? 5),
   });
 }
 
@@ -138,7 +138,7 @@ function toIsoString(value: Date | string): string {
 }
 
 function resolveSslConfig(connectionString: string): PoolConfig["ssl"] {
-  const sslMode = process.env.ZERORE_POSTGRES_SSL ?? "auto";
+  const sslMode = process.env.ZEVAL_POSTGRES_SSL ?? process.env.ZERORE_POSTGRES_SSL ?? "auto";
   if (sslMode === "disable") {
     return false;
   }
@@ -155,7 +155,9 @@ function resolveSslConfig(connectionString: string): PoolConfig["ssl"] {
  * @returns Operation result.
  */
 async function runWithTransientDatabaseRetry<T>(label: string, operation: () => Promise<T>): Promise<T> {
-  const maxAttempts = Number(process.env.ZERORE_POSTGRES_RETRY_ATTEMPTS ?? 3);
+  const maxAttempts = Number(
+    process.env.ZEVAL_POSTGRES_RETRY_ATTEMPTS ?? process.env.ZERORE_POSTGRES_RETRY_ATTEMPTS ?? 3,
+  );
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

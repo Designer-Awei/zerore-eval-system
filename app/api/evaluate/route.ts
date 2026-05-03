@@ -37,6 +37,7 @@ export async function POST(request: Request) {
           runId,
           piiRedaction: redaction.report,
         },
+        maxAttempts: 2,
       });
       return NextResponse.json({ queued: true, job, runId }, { status: 202 });
     }

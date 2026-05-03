@@ -44,8 +44,10 @@ type ChatChannel = {
   attachedFileName: string | null;
 };
 
-const CHAT_STORAGE_KEY = "zerore.chat.channels.v1";
-const CHAT_ACTIVE_STORAGE_KEY = "zerore.chat.activeChannel.v1";
+const CHAT_STORAGE_KEY = "zeval.chat.channels.v1";
+const CHAT_ACTIVE_STORAGE_KEY = "zeval.chat.activeChannel.v1";
+const LEGACY_CHAT_STORAGE_KEY = "zerore.chat.channels.v1";
+const LEGACY_CHAT_ACTIVE_STORAGE_KEY = "zerore.chat.activeChannel.v1";
 const DEFAULT_CHANNEL_TITLE = "New channel";
 const EMPTY_TURNS: ChatTurn[] = [];
 const SAMPLE_PROMPT_BUILT_IN =
@@ -73,7 +75,9 @@ export function CopilotConsole() {
   useEffect(() => {
     const storedChannels = readStoredChannels();
     const nextChannels = storedChannels.length > 0 ? storedChannels : [createChatChannel()];
-    const storedActiveId = window.localStorage.getItem(CHAT_ACTIVE_STORAGE_KEY);
+    const storedActiveId =
+      window.localStorage.getItem(CHAT_ACTIVE_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_CHAT_ACTIVE_STORAGE_KEY);
     const nextActiveId = nextChannels.some((channel) => channel.id === storedActiveId)
       ? storedActiveId ?? nextChannels[0].id
       : nextChannels[0].id;
@@ -526,7 +530,9 @@ function createChatChannel(): ChatChannel {
  */
 function readStoredChannels(): ChatChannel[] {
   try {
-    const raw = window.localStorage.getItem(CHAT_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(CHAT_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_CHAT_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];

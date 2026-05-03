@@ -3,6 +3,7 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildVersionedJudgeSystemPrompt } from "@/llm/judgeProfile";
 import type {
   EmotionIntensity,
   EmotionPolarity,
@@ -98,7 +99,7 @@ async function judgeSegmentEmotionWithLlm(
     [
       {
         role: "system",
-        content: [
+        content: buildVersionedJudgeSystemPrompt("segment_emotion_baseline", [
           "你是对话评估系统中的 emotion judge。",
           "只负责判断 topic segment 的主观情绪倾向，不负责做复杂的结构化加权。",
           "请输出 JSON，不要输出 markdown。",
@@ -108,7 +109,7 @@ async function judgeSegmentEmotionWithLlm(
           "emotionEvidence 必须引用原始片段。",
           "emotionConfidence 必须是 0 到 1 的小数。",
           '输出格式：{"emotionPolarity":"negative","emotionIntensity":"high","emotionBaseScore":32.5,"emotionEvidence":"...","emotionConfidence":0.86}',
-        ].join("\n"),
+        ]),
       },
       {
         role: "user",

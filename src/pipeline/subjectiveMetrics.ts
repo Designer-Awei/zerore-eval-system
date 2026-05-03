@@ -3,6 +3,7 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildVersionedJudgeSystemPrompt } from "@/llm/judgeProfile";
 import { buildGoalCompletions } from "@/pipeline/goalCompletion";
 import { buildRecoveryTraces } from "@/pipeline/recoveryTrace";
 import { buildImplicitSignals } from "@/pipeline/signals";
@@ -130,7 +131,7 @@ async function judgeSessionDimensionsWithLlm(
     [
       {
         role: "system",
-        content: [
+        content: buildVersionedJudgeSystemPrompt("subjective_dimension_judge", [
           "你是对话评估系统中的审稿型 Judge。",
           "输入已经先做了 topic segment 切分和隐式信号提取。",
           "你只输出 JSON，不要输出 markdown，不要补充解释。",
@@ -139,7 +140,7 @@ async function judgeSessionDimensionsWithLlm(
           "confidence 必须是 0 到 1 的小数。",
           "evidence 必须引用原始对话片段，不要编造。",
           '输出格式：{"dimensions":[{"dimension":"共情程度","score":4,"reason":"...","evidence":"...","confidence":0.82}]}',
-        ].join("\n"),
+        ]),
       },
       {
         role: "user",

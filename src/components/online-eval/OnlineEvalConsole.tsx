@@ -16,6 +16,9 @@ import type { DatasetCaseRecord, SampleBatchRecord } from "@/eval-datasets/stora
 import type { EvaluateResponse } from "@/types/pipeline";
 import styles from "./onlineEval.module.css";
 
+const LAST_CUSTOMER_ID_KEY = "zeval:lastCustomerId";
+const LEGACY_LAST_CUSTOMER_ID_KEY = "zerore:lastCustomerId";
+
 type BaselineIndexRow = {
   runId: string;
   createdAt: string;
@@ -75,7 +78,9 @@ export function OnlineEvalConsole() {
   const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("zerore:lastCustomerId");
+    const stored =
+      window.localStorage.getItem(LAST_CUSTOMER_ID_KEY) ??
+      window.localStorage.getItem(LEGACY_LAST_CUSTOMER_ID_KEY);
     if (stored) {
       setCustomerId(stored);
     }
@@ -91,7 +96,7 @@ export function OnlineEvalConsole() {
         throw new Error(data.error ?? "加载基线列表失败");
       }
       setBaselines(data.baselines ?? []);
-      window.localStorage.setItem("zerore:lastCustomerId", customerId);
+      window.localStorage.setItem(LAST_CUSTOMER_ID_KEY, customerId);
       setNotice(`已加载 ${data.baselines?.length ?? 0} 条基线索引。`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "加载失败");

@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ZevalLogo } from "@/components/brand/ZevalLogo";
 import styles from "./appShell.module.css";
 
 const NAV_ITEMS = [
@@ -36,11 +37,7 @@ export function AppShell({ children, subheader }: AppShellProps) {
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <Link href="/" className={styles.brand} aria-label="Zeval home">
-          <span className={styles.brandMark}>ZE</span>
-          <span className={styles.brandText}>
-            <span className={styles.brandWord}>Zeval</span>
-            <span className={styles.brandSub}>Eval OS</span>
-          </span>
+          <ZevalLogo subtitle="Eval OS" />
         </Link>
         <nav className={styles.nav} aria-label="primary">
           {NAV_ITEMS.map((item) => {

@@ -1,5 +1,5 @@
 {
-  "name": "zerore-eval-system",
+  "name": "zeval-eval-system",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,11 +13,14 @@
     "db:smoke": "node --import tsx scripts/smoke-database-adapter.mts",
     "db:smoke:evaluate-projection": "node --import tsx scripts/smoke-evaluate-projection.mts",
     "db:smoke:stores": "node --import tsx scripts/smoke-database-stores.mts",
+    "jobs:work": "node --import tsx scripts/run-job-worker.mts",
+    "jobs:work:once": "node --import tsx scripts/run-job-worker.mts --once",
     "db:supabase:link": "supabase link --project-ref rukjxsykowetriaxifon",
     "db:supabase:push": "supabase db push",
     "calibration:judge": "node --import tsx calibration/scripts/run-judge-on-gold.mts",
     "calibration:agreement": "node --import tsx calibration/scripts/compute-agreement.mts",
     "calibration:drift": "node --import tsx calibration/scripts/detect-drift.mts",
+    "calibration:ci": "node --import tsx calibration/scripts/ci-gate.mts",
     "gold:v2:scaffold": "node --import tsx calibration/scripts/scaffold-gold-set-v2.mts",
     "gold:v2:import": "node --import tsx calibration/scripts/import-gold-labels.mts",
     "gold:v2:expand": "node --import tsx calibration/scripts/expand-gold-from-fixtures.mts",

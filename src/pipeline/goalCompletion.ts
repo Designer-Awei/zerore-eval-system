@@ -8,6 +8,7 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildVersionedJudgeSystemPrompt } from "@/llm/judgeProfile";
 import type {
   ChatRole,
   EnrichedChatlogRow,
@@ -300,7 +301,7 @@ async function evaluateGoalCompletionWithLlm(
     [
       {
         role: "system",
-        content: [
+        content: buildVersionedJudgeSystemPrompt("goal_completion_judge", [
           "你是对话评估系统的 goal-completion Judge。",
           "任务：判断用户的最初意图在本 session 内是否被达成。",
           "只输出 JSON，不要 markdown，不要解释。",
@@ -310,7 +311,7 @@ async function evaluateGoalCompletionWithLlm(
           "achievementEvidence 与 failureReasons 是字符串数组，引用原文片段，不要编造。",
           "confidence 为 0-1 的小数。",
           '输出：{"userIntent":"...","status":"...","score":0,"achievementEvidence":[],"failureReasons":[],"confidence":0}',
-        ].join("\n"),
+        ]),
       },
       {
         role: "user",

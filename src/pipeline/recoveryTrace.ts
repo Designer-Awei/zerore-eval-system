@@ -3,6 +3,7 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildVersionedJudgeSystemPrompt } from "@/llm/judgeProfile";
 import type {
   EnrichedChatlogRow,
   FieldSource,
@@ -162,14 +163,14 @@ async function enhanceRecoveryTraceWithLlm(
     [
       {
         role: "system",
-        content: [
+        content: buildVersionedJudgeSystemPrompt("recovery_trace_strategy", [
           "你是对话评估系统中的 recovery-trace Judge。",
           "你的任务不是重新判断是否恢复成功，而是总结 Agent 采用了什么修复策略。",
           "只输出 JSON，不要 markdown，不要解释。",
           "repairStrategy 用 12 字以内中文短语表示，例如：apology + rephrase、先道歉再澄清、问题重述后给解决动作。",
           "confidence 为 0-1 的小数。",
           '输出：{"repairStrategy":"...","confidence":0.82}',
-        ].join("\n"),
+        ]),
       },
       {
         role: "user",

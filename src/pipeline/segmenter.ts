@@ -3,6 +3,7 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildVersionedJudgeSystemPrompt } from "@/llm/judgeProfile";
 import type { FieldSource, NormalizedChatlogRow, TopicSegment } from "@/types/pipeline";
 
 const LONG_GAP_REVIEW_SEC = 180;
@@ -260,12 +261,12 @@ async function reviewLongGapTopicContinuation(
     [
       {
         role: "system",
-        content: [
+        content: buildVersionedJudgeSystemPrompt("topic_continuity_review", [
           "你是对话预处理模块中的 topic continuity judge。",
           "请判断长时间间隔后的新消息，是否仍然延续前一个 topic segment。",
           "你只输出 JSON，不要输出 markdown，不要解释。",
           '输出格式：{"isContinuation":true,"confidence":0.82,"reason":"..."}',
-        ].join("\n"),
+        ]),
       },
       {
         role: "user",

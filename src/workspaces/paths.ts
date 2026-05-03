@@ -24,7 +24,8 @@ export function resolveWorkspacePath(workspaceId: string, ...segments: string[])
  * @returns Workspace path when enabled, otherwise legacy path.
  */
 export function maybeWorkspacePath(workspaceId: string | undefined, legacyPath: string): string {
-  if (process.env.ZERORE_WORKSPACE_STORAGE !== "enabled" || !workspaceId) {
+  const workspaceStorage = process.env.ZEVAL_WORKSPACE_STORAGE ?? process.env.ZERORE_WORKSPACE_STORAGE;
+  if (workspaceStorage !== "enabled" || !workspaceId) {
     return legacyPath;
   }
   return resolveWorkspacePath(workspaceId, legacyPath);

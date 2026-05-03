@@ -23,6 +23,9 @@ import type {
 import type { ValidationRunIndexRow, ValidationRunSnapshot } from "@/validation";
 import styles from "./remediationConsole.module.css";
 
+const LAST_CUSTOMER_ID_KEY = "zeval:lastCustomerId";
+const LEGACY_LAST_CUSTOMER_ID_KEY = "zerore:lastCustomerId";
+
 type PackageListResponse = {
   packages: RemediationPackageIndexRow[];
   count: number;
@@ -119,7 +122,9 @@ export function RemediationConsole() {
   const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("zerore:lastCustomerId");
+    const stored =
+      window.localStorage.getItem(LAST_CUSTOMER_ID_KEY) ??
+      window.localStorage.getItem(LEGACY_LAST_CUSTOMER_ID_KEY);
     if (stored) {
       setBaselineCustomerId(stored);
     }
@@ -526,7 +531,7 @@ export function RemediationConsole() {
         throw new Error(data.detail ?? data.error ?? "执行 validation run 失败");
       }
       if (baselineCustomerId.trim()) {
-        window.localStorage.setItem("zerore:lastCustomerId", baselineCustomerId.trim());
+        window.localStorage.setItem(LAST_CUSTOMER_ID_KEY, baselineCustomerId.trim());
       }
 
       if (selectedAgentRunId) {

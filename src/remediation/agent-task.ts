@@ -66,7 +66,7 @@ function buildAgentPrompt(
   return [
     `# ${snapshot.packageId} Agent Task`,
     "",
-    "你正在处理一个来自 ZERORE 的 remediation package。",
+    "你正在处理一个来自 Zeval 的 remediation package。",
     "",
     "## 目标",
     problemSummary,

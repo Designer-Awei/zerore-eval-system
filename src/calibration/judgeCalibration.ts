@@ -4,6 +4,7 @@
 
 import { runEvaluatePipeline } from "../pipeline/evaluateRun";
 import type { JudgeRunRecord, GoldSetCaseRecord } from "./types";
+import { getZevalJudgeProfileSnapshot } from "@/llm/judgeProfile";
 
 /**
  * Run the current evaluation pipeline against a gold set and persist
@@ -22,7 +23,8 @@ export async function runJudgeOnGoldSet(
   },
 ): Promise<JudgeRunRecord[]> {
   const records: JudgeRunRecord[] = [];
-  const model = process.env.SILICONFLOW_MODEL ?? "Qwen/Qwen3.5-27B";
+  const profile = getZevalJudgeProfileSnapshot();
+  const model = profile.model;
   const runAt = new Date().toISOString();
 
   for (const item of cases) {
@@ -47,6 +49,11 @@ export async function runJudgeOnGoldSet(
         sessionId: item.sessionId,
         judgeId: options.judgeId,
         model,
+        judgeProfile: {
+          profileVersion: profile.profileVersion,
+          provider: profile.provider,
+          promptVersions: profile.promptVersions,
+        },
         useLlm: options.useLlm,
         runAt,
         dimensions: evaluate.subjectiveMetrics.dimensions,
@@ -75,6 +82,11 @@ export async function runJudgeOnGoldSet(
         sessionId: item.sessionId,
         judgeId: options.judgeId,
         model,
+        judgeProfile: {
+          profileVersion: profile.profileVersion,
+          provider: profile.provider,
+          promptVersions: profile.promptVersions,
+        },
         useLlm: options.useLlm,
         runAt,
         dimensions: [],

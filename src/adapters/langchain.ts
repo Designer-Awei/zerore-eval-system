@@ -4,7 +4,7 @@
  * 用法（在用户的 LangChain 代码里）：
  *
  * ```ts
- * import { langchainCallbackToOtel } from "@zerore/sdk/adapters/langchain";
+ * import { langchainCallbackToOtel } from "@zeval/sdk/adapters/langchain";
  * import { ChatOpenAI } from "@langchain/openai";
  *
  * const callback = langchainCallbackToOtel({
@@ -140,7 +140,7 @@ function mapRunTypeToKind(runType: LangChainRunMinimal["run_type"]): OtelGenAiSp
  * Build a minimal "callback" object compatible with the LangChain BaseTracer interface.
  *
  * 我们不直接依赖 @langchain/core，但导出了一个具有相同 method shape 的对象，
- * 用户可以直接传入 `callbacks: [zeroreCallback]`。
+ * 用户可以直接传入 `callbacks: [zevalCallback]`。
  *
  * @param options Callback options.
  * @returns A LangChain-compatible callback handler.
@@ -157,9 +157,9 @@ export function langchainCallbackToOtel(options: {
   handleChainEnd?: (run: LangChainRunMinimal) => Promise<void>;
 } {
   return {
-    name: "ZeroreOtelCallback",
+    name: "ZevalOtelCallback",
     /**
-     * Send the trace to ZERORE on chain end.
+     * Send the trace to Zeval on chain end.
      *
      * @param run Root run produced by LangChain.
      */
@@ -181,7 +181,7 @@ export function langchainCallbackToOtel(options: {
           }),
         });
       } catch (err) {
-        console.warn("[zerore-langchain] ingest failed", err);
+        console.warn("[zeval-langchain] ingest failed", err);
       }
     },
   };

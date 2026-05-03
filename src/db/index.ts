@@ -23,8 +23,8 @@ export type ZeroreDatabaseAdapter = "local-json" | "postgres";
  * Create the active database adapter.
  *
  * Defaults to local JSON so development stays dependency-free. Set
- * `ZERORE_DATABASE_ADAPTER=postgres` with `DATABASE_URL` to write through the
- * Postgres bridge adapter.
+ * `ZEVAL_DATABASE_ADAPTER=postgres` with `DATABASE_URL` to write through the
+ * Postgres bridge adapter. `ZERORE_DATABASE_ADAPTER` remains a deprecated alias.
  *
  * @returns Database adapter.
  */
@@ -39,9 +39,9 @@ export async function createZeroreDatabase(): Promise<ZeroreDatabase> {
 }
 
 function resolveDatabaseAdapter(): ZeroreDatabaseAdapter {
-  const adapter = process.env.ZERORE_DATABASE_ADAPTER ?? "local-json";
+  const adapter = process.env.ZEVAL_DATABASE_ADAPTER ?? process.env.ZERORE_DATABASE_ADAPTER ?? "local-json";
   if (adapter === "postgres" || adapter === "local-json") {
     return adapter;
   }
-  throw new Error(`Unsupported ZERORE_DATABASE_ADAPTER: ${adapter}`);
+  throw new Error(`Unsupported ZEVAL_DATABASE_ADAPTER: ${adapter}`);
 }

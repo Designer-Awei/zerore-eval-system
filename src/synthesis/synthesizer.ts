@@ -52,7 +52,7 @@ export type SynthesizeResult = {
   warnings: string[];
 };
 
-const SYSTEM_PROMPT = `你是一个高质量评测样本生成器，目标是为 ZERORE 评估系统合成中文对话样本，让评估指标能跑出可解释的结果。
+const SYSTEM_PROMPT = `你是一个高质量评测样本生成器，目标是为 Zeval 评估系统合成中文对话样本，让评估指标能跑出可解释的结果。
 
 约束：
 1. 每条对话以 sessionId 唯一标识

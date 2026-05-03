@@ -8,6 +8,7 @@
  */
 
 import { parseJsonObjectFromLlmOutput, requestSiliconFlowChatCompletion } from "@/lib/siliconflow";
+import { buildVersionedJudgeSystemPrompt } from "@/llm/judgeProfile";
 
 /**
  * 一个标准化的 judge 调用输入。
@@ -45,20 +46,22 @@ export type JudgeVerdict = {
  * @returns System prompt string.
  */
 function buildSystemPrompt(metricId: string, criteria: string): string {
-  return `你是 ZERORE 的扩展指标评估专家，正在评估指标 [${metricId}]。
-
-评估准则：
-${criteria}
-
-输出要求：必须严格输出一个 JSON 对象，且只输出 JSON：
-{
-  "score": <0~1 之间的数字，保留 2 位小数>,
-  "reason": "<判定原因，1~2 句话>",
-  "evidence": ["<具体证据片段 1>", "<具体证据片段 2>"],
-  "confidence": <0~1 之间的数字，表示你对此判定的把握>
-}
-
-不要返回 markdown，不要返回解释，只返回 JSON。`;
+  return buildVersionedJudgeSystemPrompt("extended_metric_judge", [
+    `你是 Zeval 的扩展指标评估专家，正在评估指标 [${metricId}]。`,
+    "",
+    "评估准则：",
+    criteria,
+    "",
+    "输出要求：必须严格输出一个 JSON 对象，且只输出 JSON：",
+    "{",
+    '  "score": <0~1 之间的数字，保留 2 位小数>,',
+    '  "reason": "<判定原因，1~2 句话>",',
+    '  "evidence": ["<具体证据片段 1>", "<具体证据片段 2>"],',
+    '  "confidence": <0~1 之间的数字，表示你对此判定的把握>',
+    "}",
+    "",
+    "不要返回 markdown，不要返回解释，只返回 JSON。",
+  ]);
 }
 
 /**

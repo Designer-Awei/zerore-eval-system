@@ -1,4 +1,4 @@
-# ZERORE Eval MVP
+# Zeval MVP
 
 基于 `Next.js + TypeScript` 的 AI 对话质量工作台。当前版本已经跑通：
 
@@ -38,7 +38,7 @@
 
 ## 0.1 当前产品定位
 
-ZERORE 当前不追求做一个“大而全 eval 平台”，而是优先做：
+Zeval 当前不追求做一个“大而全 eval 平台”，而是优先做：
 
 - 一个能接入真实 `chatlog / trace` 的质量诊断工作台；
 - 一个能把典型 bad case 沉淀为回归资产的质量资产层；
@@ -93,18 +93,20 @@ ZERORE 当前不追求做一个“大而全 eval 平台”，而是优先做：
 
 - 生产级登录权限系统（当前已有 header/dev fallback 的本地 auth/workspace 基础层）
 - 生产级多租户完整隔离系统（当前已有 workspace-aware path / local DB 抽象）
-- 生产级任务队列与复杂异步编排（当前已有本地 file queue 合约）
+- 外部托管任务队列与复杂分布式编排（当前已有本地 durable job queue / worker adapter）
 
 ## 3.1 基础设施进展
 
 当前为了从 MVP 过渡到可商用架构，已经先落了一层可替换基础设施：
 
-- `src/auth/context.ts`：本地 auth/workspace context，支持 `x-zerore-user-id`、`x-zerore-workspace-id`、`x-zerore-role`。
+- `src/auth/context.ts`：本地 auth/workspace context，优先支持 `x-zeval-user-id`、`x-zeval-workspace-id`、`x-zeval-role`，并兼容旧 `x-zerore-*` header。
 - `src/pii/redaction.ts`：默认开启的 PII 脱敏，已接入 ingest / evaluate；可用 `PII_REDACTION_ENABLED=false` 关闭。
 - `src/db/*`：workspace 分区的 local JSON database adapter，后续替换 Postgres/Supabase 时保持接口不变。
-- `src/db/postgres-database.ts`：Postgres/Supabase JSONB bridge adapter，可通过 `ZERORE_DATABASE_ADAPTER=postgres` 与 `DATABASE_URL` 切换。
-- `DATASET_STORE_PROVIDER=database` / `WORKBENCH_BASELINE_STORE_PROVIDER=database`：可让评测集与工作台 baseline 走当前 `ZeroreDatabase` adapter。
-- `src/queue/index.ts` 与 `/api/jobs`：本地异步任务队列合约，后续可替换 Redis/BullMQ/Temporal。
+- `src/db/postgres-database.ts`：Postgres/Supabase JSONB bridge adapter，可通过 `ZEVAL_DATABASE_ADAPTER=postgres`（兼容 `ZERORE_DATABASE_ADAPTER`）与 `DATABASE_URL` 切换。
+- `DATASET_STORE_PROVIDER=database` / `WORKBENCH_BASELINE_STORE_PROVIDER=database`：可让评测集与工作台 baseline 走当前数据库 adapter。
+- `src/queue/index.ts`、`/api/jobs` 与 `npm run jobs:work`：本地 durable job queue，可查询、重试、取消、恢复 stale running job；后续可替换 Redis/BullMQ/Temporal。
+- `src/llm/judgeProfile.ts` 与 `calibration/judge-profile.json`：固定 Zeval judge profile、prompt versions、默认模型和 CI gate 阈值。
+- `npm run calibration:ci`：读取 gold labels 与 judge-run，执行 agreement / drift gate，失败时返回非 0 exit code。
 - `calibration/scripts/expand-gold-from-fixtures.mts`：从 fixture chatlog 扩充 gold set draft，当前 `v2` 已扩到 12 条。
 
 ## 3. 技术选型（固定）
@@ -204,7 +206,7 @@ ZERORE 当前不追求做一个“大而全 eval 平台”，而是优先做：
 - 现阶段：`FileSystemDatasetStore`（本地文件）用于 MVP 快速落地与可视化调试。
 - 后续阶段：可新增并切换到数据库/BaaS 实现（例如 `PostgreSQL`、`Supabase`）。
 - 数据库目标结构见 `database/schema.sql`，其核心原则是把评测输出拆成 `evaluation_runs / topic_segments / objective_signals / subjective_signals / business_kpi_signals / evidence_spans / risk_tags` 等可 join 的质量信号表。
-- 当前 `ZeroreDatabase` 已支持 `local-json` 与 `postgres` 两种 adapter；Postgres 模式先写 `zerore_records` JSONB bridge table，后续再迁移到 typed tables。
+- 当前数据库 adapter 已支持 `local-json` 与 `postgres` 两种模式；Postgres 模式先写历史兼容的 `zerore_records` JSONB bridge table，后续再迁移到 typed Zeval tables。
 
 建议迁移路径：
 

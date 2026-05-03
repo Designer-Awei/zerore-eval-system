@@ -23,14 +23,14 @@ const SNIPPETS: Snippet[] = [
     label: "Node SDK · evaluate",
     language: "ts",
     description: "把会话日志直接交给 Zeval 评估，返回 baseline + extendedMetrics。",
-    code: `import { ZeroreClient } from "@zerore/sdk";
+    code: `import { ZevalClient } from "@zeval/sdk";
 
-const zerore = new ZeroreClient({
+const zeval = new ZevalClient({
   baseUrl: "http://localhost:3010",
-  apiKey: process.env.ZERORE_API_KEY,
+  apiKey: process.env.ZEVAL_API_KEY,
 });
 
-const result = await zerore.evaluate({
+const result = await zeval.evaluate({
   rawRows: [
     { sessionId: "s1", role: "user", content: "退款怎么操作？", timestamp: "..." },
     { sessionId: "s1", role: "assistant", content: "我先帮你登记...", timestamp: "..." },
@@ -49,11 +49,11 @@ console.log(result.extendedMetrics?.faithfulness);`,
     language: "ts",
     description: "把任意 LangChain 链路接入 Zeval，自动转 OTel trace 实时上报。",
     code: `import { ChatOpenAI } from "@langchain/openai";
-import { langchainCallbackToOtel } from "@zerore/sdk/adapters/langchain";
+import { langchainCallbackToOtel } from "@zeval/sdk/adapters/langchain";
 
 const callback = langchainCallbackToOtel({
   ingestUrl: "http://localhost:3010/api/traces/ingest",
-  apiKey: process.env.ZERORE_API_KEY,
+  apiKey: process.env.ZEVAL_API_KEY,
   sessionId: "user_42_session_8",
   evaluateInline: true,
 });
@@ -70,34 +70,34 @@ await model.invoke([{ role: "user", content: "退款流程？" }]);`,
     label: "OpenAI Agents SDK",
     language: "ts",
     description: "在 OpenAI Agents 的 run hook 里把 Run 转成 trace 上报。",
-    code: `import { ZeroreClient, convertOpenAIAgentRunToTrace } from "@zerore/sdk";
+    code: `import { ZevalClient, convertOpenAIAgentRunToTrace } from "@zeval/sdk";
 
-const zerore = new ZeroreClient({ baseUrl: "http://localhost:3010" });
+const zeval = new ZevalClient({ baseUrl: "http://localhost:3010" });
 
 const run = await client.runs.retrieve(threadId, runId);
 const trace = convertOpenAIAgentRunToTrace(run, { sessionId: threadId });
 
-await zerore.ingestTrace([trace], {
+await zeval.ingestTrace([trace], {
   evaluateInline: true,
   scenarioId: "toB-customer-support",
 });`,
   },
   {
     id: "cli",
-    label: "CLI · npx zerore",
+    label: "CLI · npx zeval",
     language: "bash",
     description: "命令行直接评估 / 合成 / 接入 trace，适合 CI 与离线流水线。",
     code: `# evaluate a CSV
-ZERORE_BASE_URL=http://localhost:3010 \\
-  npx zerore evaluate --file conversation.csv --scenario toB-customer-support
+ZEVAL_BASE_URL=http://localhost:3010 \\
+  npx zeval evaluate --file conversation.csv --scenario toB-customer-support
 
 # synthesize 10 cases
-ZERORE_BASE_URL=http://localhost:3010 \\
-  npx zerore synthesize --scenario "ToB 客服" --count 10
+ZEVAL_BASE_URL=http://localhost:3010 \\
+  npx zeval synthesize --scenario "ToB 客服" --count 10
 
 # ingest a trace
-ZERORE_BASE_URL=http://localhost:3010 \\
-  npx zerore ingest --file trace.json --evaluate`,
+ZEVAL_BASE_URL=http://localhost:3010 \\
+  npx zeval ingest --file trace.json --evaluate`,
   },
   {
     id: "rest-evaluate",
@@ -106,7 +106,7 @@ ZERORE_BASE_URL=http://localhost:3010 \\
     description: "无 SDK 也能用，直接 curl POST。所有 endpoint 见 /api/docs。",
     code: `curl -X POST http://localhost:3010/api/evaluate \\
   -H "content-type: application/json" \\
-  -H "x-zerore-api-key: $ZERORE_API_KEY" \\
+  -H "x-zeval-api-key: $ZEVAL_API_KEY" \\
   -d '{
     "rawRows": [...],
     "scenarioId": "toB-customer-support",
@@ -200,7 +200,7 @@ export function IntegrationsConsole() {
 
         <section className={styles.installCard}>
           <strong>安装</strong>
-          <code className={styles.installCmd}>npm install @zerore/sdk</code>
+          <code className={styles.installCmd}>npm install @zeval/sdk</code>
           <a href="/api/docs" className={styles.docsLink} target="_blank" rel="noreferrer">
             查看 OpenAPI 规格 →
           </a>

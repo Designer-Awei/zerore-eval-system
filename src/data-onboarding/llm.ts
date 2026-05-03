@@ -29,7 +29,7 @@ export async function reviewDataMappingPlanWithLlm(
       {
         role: "system",
         content: [
-          "你是 ZERORE 的 Data Onboarding Agent。",
+          "你是 Zeval 的 Data Onboarding Agent。",
           "任务：复核上传数据的字段映射计划，判断它是否能对齐到内部评估结构。",
           "不要转换完整数据，只输出 JSON。",
           "如果字段缺失，要指出会导致哪些评估能力降级。",

@@ -4,6 +4,13 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  ZEVAL_JUDGE_MAX_TOKENS,
+  ZEVAL_JUDGE_TEMPERATURE,
+  ZEVAL_JUDGE_TOP_P,
+  getPromptVersionForRequestStage,
+  getZevalJudgeProfileSnapshot,
+} from "@/llm/judgeProfile";
 
 type SiliconFlowMessage = {
   role: "system" | "user" | "assistant";
@@ -45,28 +52,36 @@ export async function requestSiliconFlowChatCompletion(
   const model = config.model;
 
   if (!isUsableApiKey(apiKey)) {
-    throw new Error("未配置有效的 SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
+    throw new Error("未配置有效的 ZEVAL_JUDGE_API_KEY / SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45000);
   const startedAt = Date.now();
   const logPrefix = buildLlmLogPrefix(context);
+  const promptVersion = getPromptVersionForRequestStage(context.stage);
+  const judgeProfile = getZevalJudgeProfileSnapshot();
 
   try {
-    console.info(`${logPrefix} START model=${model} messages=${messages.length}`);
+    console.info(
+      `${logPrefix} START model=${model} judgeProfile=${judgeProfile.profileVersion} promptVersion=${promptVersion ?? "unversioned"} messages=${messages.length}`,
+    );
     const requestBody: Record<string, unknown> = {
       model,
       messages,
       stream: false,
-      temperature: 0.2,
-      top_p: 0.7,
-      max_tokens: 1200,
+      temperature: ZEVAL_JUDGE_TEMPERATURE,
+      top_p: ZEVAL_JUDGE_TOP_P,
+      max_tokens: ZEVAL_JUDGE_MAX_TOKENS,
       response_format: {
         type: "json_object",
       },
     };
-    const enableThinking = resolveOptionalBoolean(process.env.SILICONFLOW_ENABLE_THINKING);
+    const enableThinking = resolveOptionalBoolean(
+      process.env.ZEVAL_JUDGE_ENABLE_THINKING ??
+        process.env.ZEVAL_LLM_ENABLE_THINKING ??
+        process.env.SILICONFLOW_ENABLE_THINKING,
+    );
     if (typeof enableThinking === "boolean") {
       requestBody.enable_thinking = enableThinking;
     }
@@ -203,31 +218,59 @@ let hasLoggedEnvFallback = false;
 
 /**
  * Resolve runtime config from process.env first, then local .env, then example fallback.
+ * Zeval-prefixed variables are preferred; SiliconFlow-prefixed variables remain
+ * backward-compatible aliases for existing local environments.
+ *
  * @returns Stable SiliconFlow runtime config.
  */
 function getSiliconFlowRuntimeConfig(): SiliconFlowRuntimeConfig {
   const envConfig = readEnvConfig();
   const fallback = readEnvExampleConfig();
-  const apiKey = process.env.SILICONFLOW_API_KEY ?? envConfig.apiKey ?? fallback.apiKey;
+  const apiKey =
+    process.env.ZEVAL_JUDGE_API_KEY ??
+    process.env.ZEVAL_LLM_API_KEY ??
+    process.env.SILICONFLOW_API_KEY ??
+    envConfig.apiKey ??
+    fallback.apiKey;
   const baseUrl =
+    process.env.ZEVAL_JUDGE_BASE_URL ??
+    process.env.ZEVAL_LLM_BASE_URL ??
     process.env.SILICONFLOW_BASE_URL ??
     envConfig.baseUrl ??
     fallback.baseUrl ??
     "https://api.siliconflow.cn/v1";
   const model =
-    process.env.SILICONFLOW_MODEL ?? envConfig.model ?? fallback.model ?? "Qwen/Qwen3.5-27B";
+    process.env.ZEVAL_JUDGE_MODEL ??
+    process.env.ZEVAL_LLM_MODEL ??
+    process.env.SILICONFLOW_MODEL ??
+    envConfig.model ??
+    fallback.model ??
+    "Qwen/Qwen3.5-27B";
 
   if (!isUsableApiKey(apiKey)) {
-    throw new Error("未配置有效的 SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
+    throw new Error("未配置有效的 ZEVAL_JUDGE_API_KEY / SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
   }
 
-  if (!process.env.SILICONFLOW_API_KEY && envConfig.apiKey && !hasLoggedEnvFallback) {
-    console.warn("[LLM] Using .env fallback for SiliconFlow credentials.");
+  if (
+    !process.env.ZEVAL_JUDGE_API_KEY &&
+    !process.env.ZEVAL_LLM_API_KEY &&
+    !process.env.SILICONFLOW_API_KEY &&
+    envConfig.apiKey &&
+    !hasLoggedEnvFallback
+  ) {
+    console.warn("[LLM] Using .env fallback for Zeval judge credentials.");
     hasLoggedEnvFallback = true;
   }
 
-  if (!process.env.SILICONFLOW_API_KEY && !envConfig.apiKey && fallback.apiKey && !hasLoggedEnvExampleFallback) {
-    console.warn("[LLM] Using .env.example fallback for SiliconFlow credentials.");
+  if (
+    !process.env.ZEVAL_JUDGE_API_KEY &&
+    !process.env.ZEVAL_LLM_API_KEY &&
+    !process.env.SILICONFLOW_API_KEY &&
+    !envConfig.apiKey &&
+    fallback.apiKey &&
+    !hasLoggedEnvExampleFallback
+  ) {
+    console.warn("[LLM] Using .env.example fallback for Zeval judge credentials.");
     hasLoggedEnvExampleFallback = true;
   }
 
@@ -307,9 +350,9 @@ function readSiliconFlowConfigFromFile(fileName: string): Partial<SiliconFlowRun
 
   const parsed = parseSimpleEnvFile(readFileSync(envPath, "utf8"));
   return {
-    apiKey: parsed.SILICONFLOW_API_KEY,
-    baseUrl: parsed.SILICONFLOW_BASE_URL,
-    model: parsed.SILICONFLOW_MODEL,
+    apiKey: parsed.ZEVAL_JUDGE_API_KEY ?? parsed.ZEVAL_LLM_API_KEY ?? parsed.SILICONFLOW_API_KEY,
+    baseUrl: parsed.ZEVAL_JUDGE_BASE_URL ?? parsed.ZEVAL_LLM_BASE_URL ?? parsed.SILICONFLOW_BASE_URL,
+    model: parsed.ZEVAL_JUDGE_MODEL ?? parsed.ZEVAL_LLM_MODEL ?? parsed.SILICONFLOW_MODEL,
   };
 }
 

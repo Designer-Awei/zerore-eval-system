@@ -1,5 +1,5 @@
 /**
- * @fileoverview Project an OTel GenAI trace into ZERORE's evaluable inputs.
+ * @fileoverview Project an OTel GenAI trace into Zeval's evaluable inputs.
  *
  * 把不同来源的 trace（OTel/OpenAI/LangChain/手工）拍平成：
  *   - rawRows         (用于 evaluate pipeline)
@@ -10,7 +10,7 @@
 import type { OtelGenAiSpan, OtelGenAiTrace, TraceProjection } from "@/types/otel-genai";
 
 /**
- * Project an OTel GenAI trace into ZERORE evaluable inputs.
+ * Project an OTel GenAI trace into Zeval evaluable inputs.
  *
  * @param trace OTel-shaped trace.
  * @returns Projection used by the evaluate pipeline + extended metrics.

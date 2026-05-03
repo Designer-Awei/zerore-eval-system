@@ -2,11 +2,13 @@ import path from "node:path";
 import * as calibrationJsonl from "../../src/calibration/jsonl.ts";
 import * as judgeCalibration from "../../src/calibration/judgeCalibration.ts";
 import * as calibrationPaths from "../../src/calibration/paths.ts";
+import * as judgeProfile from "../../src/llm/judgeProfile.ts";
 import type { GoldSetCaseRecord } from "../../src/calibration/types.ts";
 
 const calibrationJsonlApi = resolveInteropModule(calibrationJsonl);
 const judgeCalibrationApi = resolveInteropModule(judgeCalibration);
 const calibrationPathsApi = resolveInteropModule(calibrationPaths);
+const judgeProfileApi = resolveInteropModule(judgeProfile);
 
 void main().catch((error) => {
   console.error("[calibration:judge] failed", error);
@@ -69,8 +71,8 @@ function buildDefaultJudgeId(useLlm: boolean): string {
   if (!useLlm) {
     return "rule-local";
   }
-  const model = process.env.SILICONFLOW_MODEL ?? "siliconflow-default";
-  return `llm-${calibrationPathsApi.sanitizeCalibrationId(model)}`;
+  const profile = judgeProfileApi.getZevalJudgeProfileSnapshot();
+  return `llm-${calibrationPathsApi.sanitizeCalibrationId(profile.profileVersion)}-${calibrationPathsApi.sanitizeCalibrationId(profile.model)}`;
 }
 
 /**

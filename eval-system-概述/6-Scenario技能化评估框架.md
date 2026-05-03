@@ -1,8 +1,8 @@
-# ZERORE Scenario 技能化评估框架 v2
+# Zeval Scenario 技能化评估框架 v2
 
 ## 1. 设计目标
 
-ZERORE 后续不应该把所有业务都塞进同一套固定指标，而应该采用：
+Zeval 后续不应该把所有业务都塞进同一套固定指标，而应该采用：
 
 ```text
 通用评估内核 + Scenario Skill 模板 + 可替换 Judge Rubric + 业务 KPI 映射
@@ -313,7 +313,7 @@ type MetricDefinition = {
 
 ## 7. 产品层结论
 
-ZERORE 的长期形态应该是：
+Zeval 的长期形态应该是：
 
 ```text
 一个通用 AI 对话质量评估内核

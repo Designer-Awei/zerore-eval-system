@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getZeroreRequestContext } from "@/auth/context";
+import { enqueueLocalJob } from "@/queue";
 import { createRemediationPackageStore } from "@/remediation";
 import { validationRunCreateBodySchema } from "@/schemas/validation";
 import { createValidationRunStore, runOfflineEvalValidation, runReplayValidation } from "@/validation";
@@ -30,9 +32,20 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    const context = getZeroreRequestContext(request);
     const parsedBody = validationRunCreateBodySchema.safeParse(await request.json());
     if (!parsedBody.success) {
       return NextResponse.json({ error: "请求体不合法。", details: parsedBody.error.flatten() }, { status: 400 });
+    }
+
+    if (parsedBody.data.asyncMode) {
+      const job = await enqueueLocalJob({
+        workspaceId: context.workspaceId,
+        type: "validation_run",
+        payload: parsedBody.data,
+        maxAttempts: 2,
+      });
+      return NextResponse.json({ queued: true, job }, { status: 202 });
     }
 
     const remediationStore = createRemediationPackageStore();

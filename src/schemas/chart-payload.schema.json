@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://zerore.ai/schemas/chart-payload.schema.json",
+  "$id": "https://zeval.ai/schemas/chart-payload.schema.json",
   "title": "ChartPayload",
   "type": "object",
   "required": [

@@ -31,11 +31,19 @@ const ROLE_ORDER: Record<ZeroreRole, number> = {
  * @returns Request context.
  */
 export function getZeroreRequestContext(request: Request): ZeroreRequestContext {
-  const userId = request.headers.get("x-zerore-user-id")?.trim() || DEFAULT_DEV_CONTEXT.userId;
+  const userId =
+    request.headers.get("x-zeval-user-id")?.trim() ||
+    request.headers.get("x-zerore-user-id")?.trim() ||
+    DEFAULT_DEV_CONTEXT.userId;
   const workspaceId = sanitizeContextId(
-    request.headers.get("x-zerore-workspace-id")?.trim() || DEFAULT_DEV_CONTEXT.workspaceId,
+    request.headers.get("x-zeval-workspace-id")?.trim() ||
+      request.headers.get("x-zerore-workspace-id")?.trim() ||
+      DEFAULT_DEV_CONTEXT.workspaceId,
   );
-  const role = parseRole(request.headers.get("x-zerore-role")?.trim()) ?? DEFAULT_DEV_CONTEXT.role;
+  const role =
+    parseRole(request.headers.get("x-zeval-role")?.trim()) ??
+    parseRole(request.headers.get("x-zerore-role")?.trim()) ??
+    DEFAULT_DEV_CONTEXT.role;
   return { userId, workspaceId, role };
 }
 
