@@ -7,6 +7,7 @@ import type { StructuredTaskMetrics } from "@/types/rich-conversation";
 import type { EvalMetricRegistrySnapshot } from "@/types/eval-metric";
 import type { EvalTrace } from "@/types/eval-trace";
 import type { EvalCaseBundle } from "@/types/eval-case";
+import type { ExtendedMetricsBundle } from "@/types/extended-metrics";
 
 /**
  * Supported upload formats for raw chatlog ingestion.
@@ -412,6 +413,11 @@ export type EvaluateResponse = {
   metricRegistry?: EvalMetricRegistrySnapshot;
   scenarioEvaluation: ScenarioEvaluation | null;
   badCaseAssets: BadCaseAsset[];
+  /**
+   * DeepEval-aligned extended metrics (faithfulness/hallucination/toolCorrectness/...).
+   * Null fields mean the corresponding input was not provided.
+   */
+  extendedMetrics?: ExtendedMetricsBundle;
   charts: ChartPayload[];
   suggestions: string[];
 };

@@ -8,6 +8,7 @@ import { buildBadCaseAssets } from "@/pipeline/badCases";
 import { buildChartPayloads } from "@/pipeline/chartBuilder";
 import { enrichRows, toEnrichedCsv } from "@/pipeline/enrich";
 import { buildEvalCaseBundle } from "@/pipeline/evalCaseBuilder";
+import { buildExtendedMetrics } from "@/pipeline/extendedMetrics";
 import { buildMetricRegistrySnapshot } from "@/pipeline/metricRegistry";
 import { buildObjectiveMetrics } from "@/pipeline/objectiveMetrics";
 import { evaluateScenarioTemplate } from "@/pipeline/scenarioEvaluator";
@@ -18,6 +19,12 @@ import { getScenarioTemplateById } from "@/scenarios";
 import type { EvaluateResponse, RawChatlogRow, ScenarioEvaluateContext } from "@/types/pipeline";
 import type { StructuredTaskMetrics } from "@/types/rich-conversation";
 import type { EvalTrace } from "@/types/eval-trace";
+import type {
+  KnowledgeRetentionFact,
+  RetrievalContext,
+  RoleProfile,
+  ToolCallRecord,
+} from "@/types/extended-metrics";
 
 export type EvaluateRunOptions = {
   useLlm: boolean;
@@ -28,6 +35,16 @@ export type EvaluateRunOptions = {
   trace?: EvalTrace;
   persistArtifact?: boolean;
   artifactBaseName?: string;
+  /**
+   * Optional inputs for DeepEval-aligned extended metrics.
+   * 提供任意子集即触发对应指标，未提供的指标返回 null。
+   */
+  extendedInputs?: {
+    retrievalContexts?: RetrievalContext[];
+    toolCalls?: ToolCallRecord[];
+    retentionFacts?: KnowledgeRetentionFact[];
+    roleProfile?: RoleProfile;
+  };
 };
 
 /**
@@ -74,6 +91,22 @@ export async function runEvaluatePipeline(
     scenarioEvaluation,
     scenarioTemplate,
   });
+  // DeepEval-aligned extended metrics. 仅当提供了对应 input 时才会有结果。
+  const extendedInputs = options.extendedInputs ?? {};
+  const hasAnyExtendedInput = Boolean(
+    extendedInputs.retrievalContexts?.length ||
+      extendedInputs.toolCalls?.length ||
+      extendedInputs.retentionFacts?.length ||
+      extendedInputs.roleProfile,
+  );
+  const extendedMetrics = hasAnyExtendedInput
+    ? await buildExtendedMetrics({
+        ...extendedInputs,
+        useLlm: options.useLlm,
+        runId: options.runId,
+      })
+    : undefined;
+
   const charts = buildChartPayloads(enrichedRows);
   const suggestions = buildSuggestions(enrichedRows, objectiveMetrics, subjectiveMetrics);
   const summaryCards = buildSummaryCards(
@@ -122,6 +155,7 @@ export async function runEvaluatePipeline(
     metricRegistry,
     scenarioEvaluation,
     badCaseAssets,
+    extendedMetrics,
     charts,
     suggestions,
   };

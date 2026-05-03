@@ -90,6 +90,58 @@ const traceSchema = z.object({
 });
 
 /**
+ * Retrieval context for RAG-style extended metrics (faithfulness/relevancy/...).
+ */
+export const retrievalContextSchema = z.object({
+  contexts: z.array(z.string()).default([]),
+  query: z.string(),
+  response: z.string(),
+  turnIndex: z.number().int().optional(),
+  sessionId: z.string().optional(),
+});
+
+/**
+ * Tool call record for ToolCorrectnessMetric.
+ */
+export const toolCallRecordSchema = z.object({
+  sessionId: z.string(),
+  turnIndex: z.number().int(),
+  toolName: z.string(),
+  arguments: z.record(z.string(), z.unknown()).default({}),
+  expectedToolName: z.string().optional(),
+  expectedArguments: z.record(z.string(), z.unknown()).optional(),
+  succeeded: z.boolean().optional(),
+});
+
+/**
+ * Knowledge retention fact for multi-turn metric.
+ */
+export const knowledgeRetentionFactSchema = z.object({
+  factId: z.string(),
+  introducedAtTurn: z.number().int(),
+  factText: z.string(),
+});
+
+/**
+ * Role profile for RoleAdherenceMetric.
+ */
+export const roleProfileSchema = z.object({
+  roleName: z.string(),
+  characterDescription: z.string(),
+  prohibitedBehaviors: z.array(z.string()).optional(),
+});
+
+/**
+ * Extended metrics inputs (DeepEval-aligned).
+ */
+export const extendedInputsSchema = z.object({
+  retrievalContexts: z.array(retrievalContextSchema).optional(),
+  toolCalls: z.array(toolCallRecordSchema).optional(),
+  retentionFacts: z.array(knowledgeRetentionFactSchema).optional(),
+  roleProfile: roleProfileSchema.optional(),
+});
+
+/**
  * Evaluate request schema.
  */
 export const evaluateRequestSchema = z.object({
@@ -103,4 +155,5 @@ export const evaluateRequestSchema = z.object({
   asyncMode: z.boolean().optional(),
   structuredTaskMetrics: structuredTaskMetricsSchema.optional(),
   trace: traceSchema.optional(),
+  extendedInputs: extendedInputsSchema.optional(),
 });

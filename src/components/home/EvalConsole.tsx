@@ -10,6 +10,7 @@ import { BadCasePanel } from "@/components/home/BadCasePanel";
 import { previewCsvLines, splitCsvLine } from "@/lib/csv";
 import { inferFormatFromFileName } from "@/parsers";
 import { ChartsPanel } from "@/components/home/ChartsPanel";
+import { ExtendedMetricsPanel } from "@/components/home/ExtendedMetricsPanel";
 import { FeatherIcon } from "@/components/home/FeatherIcon";
 import { GoalCompletionPanel } from "@/components/home/GoalCompletionPanel";
 import { PreviewTable } from "@/components/home/PreviewTable";
@@ -1231,6 +1232,16 @@ function StepEvaluate(props: StepEvaluateProps) {
                 <SummaryGrid cards={props.summaryCards} />
               </section>
               <StructuredTaskMetricsPanel metrics={props.evaluateResult.structuredTaskMetrics} />
+              <section className={`${styles.panel} ${styles.panelFull}`}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <h2>扩展指标（DeepEval 对齐）</h2>
+                    <p>10 项 RAG / Agentic / MultiTurn / Safety / RolePlay 指标。提供 extendedInputs 即可解锁。</p>
+                  </div>
+                  <span className={styles.panelMeta}>EXTENDED</span>
+                </div>
+                <ExtendedMetricsPanel metrics={props.evaluateResult.extendedMetrics} />
+              </section>
               <section className={`${styles.panel} ${styles.panelFull}`}>
                 <div className={styles.panelHeader}>
                   <div>

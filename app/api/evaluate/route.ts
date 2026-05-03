@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       trace: body.trace,
       persistArtifact: body.persistArtifact ?? Boolean(body.artifactBaseName),
       artifactBaseName: body.artifactBaseName,
+      extendedInputs: body.extendedInputs,
     });
     response.meta.workspaceId = context.workspaceId;
     response.meta.piiRedaction = redaction.report;
