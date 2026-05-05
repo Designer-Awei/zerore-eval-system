@@ -26,7 +26,7 @@ import { RecoveryTracePanel } from "@/components/home/RecoveryTracePanel";
 import { ScenarioKpiPanel } from "@/components/home/ScenarioKpiPanel";
 import { StatusPanel } from "@/components/home/StatusPanel";
 import { SuggestionPanel } from "@/components/home/SuggestionPanel";
-import { SummaryGrid } from "@/components/home/SummaryGrid";
+import { GroupedSummaryPanel } from "@/components/home/GroupedSummaryPanel";
 import { UploadDropzone } from "@/components/home/UploadDropzone";
 import { AppShell, Stepper, type StepperStep } from "@/components/shell";
 import type { RemediationPackageSnapshot } from "@/remediation";
@@ -84,7 +84,8 @@ const EVALUATION_STAGE_INDEX: Record<EvaluationStageKey, number> = {
 };
 const ALLOWED_EXTENSIONS = new Set(["csv", "json", "jsonl", "txt", "md"]);
 const MAX_UPLOAD_SIZE_MB = 5;
-const EVAL_CONSOLE_SNAPSHOT_KEY = "zeval:evalConsoleSnapshot:v2";
+const EVAL_CONSOLE_SNAPSHOT_KEY = "zeval.workbench.snapshot.v1";
+const LEGACY_SESSION_EVAL_CONSOLE_SNAPSHOT_KEY = "zeval:evalConsoleSnapshot:v2";
 const LEGACY_EVAL_CONSOLE_SNAPSHOT_KEY = "zerore:evalConsoleSnapshot:v2";
 const LAST_CUSTOMER_ID_KEY = "zeval:lastCustomerId";
 const LEGACY_LAST_CUSTOMER_ID_KEY = "zerore:lastCustomerId";
@@ -218,7 +219,8 @@ export function EvalConsole() {
     }
 
     const snapshotRaw =
-      window.sessionStorage.getItem(EVAL_CONSOLE_SNAPSHOT_KEY) ??
+      window.localStorage.getItem(EVAL_CONSOLE_SNAPSHOT_KEY) ??
+      window.sessionStorage.getItem(LEGACY_SESSION_EVAL_CONSOLE_SNAPSHOT_KEY) ??
       window.sessionStorage.getItem(LEGACY_EVAL_CONSOLE_SNAPSHOT_KEY);
     if (!snapshotRaw) {
       snapshotHydratedRef.current = true;
@@ -243,7 +245,7 @@ export function EvalConsole() {
       setDataMappingPlan(snapshot.dataMappingPlan ?? null);
       setCurrentStep(snapshot.currentStep ?? 0);
     } catch {
-      window.sessionStorage.removeItem(EVAL_CONSOLE_SNAPSHOT_KEY);
+      window.localStorage.removeItem(EVAL_CONSOLE_SNAPSHOT_KEY);
     } finally {
       snapshotHydratedRef.current = true;
     }
@@ -269,7 +271,7 @@ export function EvalConsole() {
       dataMappingPlan,
       currentStep,
     };
-    window.sessionStorage.setItem(EVAL_CONSOLE_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    window.localStorage.setItem(EVAL_CONSOLE_SNAPSHOT_KEY, JSON.stringify(snapshot));
   }, [
     fileName,
     format,
@@ -1329,11 +1331,11 @@ function StepEvaluate(props: StepEvaluateProps) {
                 <div className={styles.panelHeader}>
                   <div>
                     <h2>核心指标</h2>
-                    <p>会话规模、响应间隔、共情、目标达成、bad case 数 一屏看完。</p>
+                    <p>按「对话质量 / 任务完成度 / 工具调用可用性 / 风险信号」聚类，鼠标悬停 ⓘ 查看每项指标的解释与计算口径。</p>
                   </div>
                   <span className={styles.panelMeta}>SUMMARY</span>
                 </div>
-                <SummaryGrid cards={props.summaryCards} />
+                <GroupedSummaryPanel cards={props.summaryCards} />
                 <BaselineTrendPanel customerId={props.baselineCustomerId} />
               </section>
               <StructuredTaskMetricsPanel metrics={props.evaluateResult.structuredTaskMetrics} />
