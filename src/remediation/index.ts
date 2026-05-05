@@ -33,6 +33,8 @@ export type {
   RemediationPackageIndexRow,
   RemediationPackageSnapshot,
   RemediationPriority,
+  RemediationSkillBundle,
+  RemediationSkillBundleFile,
   RemediationReleaseReadinessGateStatus,
   RemediationReleaseReadinessStatus,
   RemediationReleaseReadinessSummary,

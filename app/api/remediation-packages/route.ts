@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const store = createRemediationPackageStore();
     await store.save(snapshot);
 
-    return NextResponse.json({ package: snapshot, skipped: false });
+    return NextResponse.json({ package: snapshot, skipped: false, skillFolder: snapshot.skillFolder });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: "生成调优包失败。", detail: message }, { status: 500 });

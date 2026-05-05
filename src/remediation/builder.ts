@@ -12,6 +12,7 @@ import type {
   RemediationPackageFile,
   RemediationPackageSnapshot,
   RemediationPriority,
+  RemediationSkillBundle,
   RemediationTargetMetric,
 } from "@/remediation/types";
 import { renderYamlDocument } from "@/remediation/yaml";
@@ -128,51 +129,72 @@ export function buildRemediationPackage(input: {
   const targetMetrics = buildTargetMetrics(input.evaluate, selectedCases);
   const acceptanceGate = buildAcceptanceGate(input.evaluate, selectedCases, targetMetrics, input.baselineCustomerId);
   const title = buildPackageTitle(selectedCases, input.evaluate);
-  const artifactDir = `artifacts/remediation-packages/${packageId}`;
+  const skillFolderName = `remediation-skill-${packageId}`;
+  const artifactDir = `artifacts/remediation-packages/${skillFolderName}`;
+  const issueBrief = buildIssueBrief({
+    packageId,
+    createdAt,
+    evaluate: input.evaluate,
+    selectedCases,
+    priority,
+    editScope,
+    problemSummary,
+    constraints,
+    targetMetrics,
+    acceptanceGate,
+  });
+  const remediationSpec = buildRemediationSpecYaml({
+    packageId,
+    createdAt,
+    evaluate: input.evaluate,
+    selectedCases,
+    priority,
+    editScope,
+    problemSummary,
+    constraints,
+    targetMetrics,
+  });
+  const badcasesJsonl = buildBadcasesJsonl(selectedCases);
+  const acceptanceGateYaml = renderYamlDocument(acceptanceGate);
 
   const files: RemediationPackageFile[] = [
     {
       fileName: "issue-brief.md",
-      relativePath: `${artifactDir}/issue-brief.md`,
-      content: buildIssueBrief({
-        packageId,
-        createdAt,
-        evaluate: input.evaluate,
-        selectedCases,
-        priority,
-        editScope,
-        problemSummary,
-        constraints,
-        targetMetrics,
-        acceptanceGate,
-      }),
+      relativePath: `${artifactDir}/reference/issue-brief.md`,
+      content: issueBrief,
     },
     {
       fileName: "remediation-spec.yaml",
-      relativePath: `${artifactDir}/remediation-spec.yaml`,
-      content: buildRemediationSpecYaml({
-        packageId,
-        createdAt,
-        evaluate: input.evaluate,
-        selectedCases,
-        priority,
-        editScope,
-        problemSummary,
-        constraints,
-        targetMetrics,
-      }),
+      relativePath: `${artifactDir}/reference/remediation-spec.yaml`,
+      content: remediationSpec,
     },
     {
       fileName: "badcases.jsonl",
-      relativePath: `${artifactDir}/badcases.jsonl`,
-      content: buildBadcasesJsonl(selectedCases),
+      relativePath: `${artifactDir}/reference/badcases.jsonl`,
+      content: badcasesJsonl,
     },
     {
       fileName: "acceptance-gate.yaml",
-      relativePath: `${artifactDir}/acceptance-gate.yaml`,
-      content: renderYamlDocument(acceptanceGate),
+      relativePath: `${artifactDir}/reference/acceptance-gate.yaml`,
+      content: acceptanceGateYaml,
     },
   ];
+  const skillBundle = buildSkillBundle({
+    packageId,
+    title,
+    createdAt,
+    artifactDir,
+    skillFolderName,
+    evaluate: input.evaluate,
+    selectedCases,
+    priority,
+    editScope,
+    problemSummary,
+    constraints,
+    targetMetrics,
+    acceptanceGate,
+    referenceFiles: files,
+  });
 
   const snapshot: RemediationPackageSnapshot = {
     schemaVersion: 1,
@@ -193,6 +215,8 @@ export function buildRemediationPackage(input: {
     acceptanceGate,
     artifactDir,
     files,
+    skillFolder: skillBundle.rootPath,
+    skillBundle,
   };
 
   return {
@@ -606,6 +630,152 @@ function buildIssueBrief(input: {
     "## 验收摘要",
     `- replay.min_win_rate = ${input.acceptanceGate.replay.minWinRate}`,
     `- offline_eval.max_regressions = ${input.acceptanceGate.offlineEval.maxRegressions}`,
+  ].join("\n");
+}
+
+/**
+ * Build a Claude Code / Codex compatible skill bundle.
+ *
+ * @param input Bundle rendering input.
+ * @returns Skill bundle descriptor.
+ */
+function buildSkillBundle(input: {
+  packageId: string;
+  title: string;
+  createdAt: string;
+  artifactDir: string;
+  skillFolderName: string;
+  evaluate: RemediationEvaluateInput;
+  selectedCases: RemediationBadCase[];
+  priority: RemediationPriority;
+  editScope: RemediationEditScope[];
+  problemSummary: string[];
+  constraints: string[];
+  targetMetrics: RemediationTargetMetric[];
+  acceptanceGate: RemediationAcceptanceGate;
+  referenceFiles: RemediationPackageFile[];
+}): RemediationSkillBundle {
+  const skillFile = {
+    fileName: "SKILL.md",
+    relativePath: `${input.artifactDir}/SKILL.md`,
+    role: "overview" as const,
+    content: buildSkillMarkdown(input),
+  };
+  const readmeFile = {
+    fileName: "README.md",
+    relativePath: `${input.artifactDir}/README.md`,
+    role: "readme" as const,
+    content: buildSkillReadme(input),
+  };
+  const referenceFiles = input.referenceFiles.map((file) => ({
+    fileName: file.fileName,
+    relativePath: file.relativePath,
+    content: file.content,
+    role: "reference" as const,
+  }));
+  return {
+    folderName: input.skillFolderName,
+    rootPath: input.artifactDir,
+    skillFile,
+    readmeFile,
+    referenceFiles,
+    files: [skillFile, ...referenceFiles, readmeFile],
+  };
+}
+
+/**
+ * Render the human-facing SKILL.md entrypoint.
+ *
+ * @param input Bundle rendering input.
+ * @returns Markdown content.
+ */
+function buildSkillMarkdown(input: {
+  packageId: string;
+  title: string;
+  createdAt: string;
+  evaluate: RemediationEvaluateInput;
+  selectedCases: RemediationBadCase[];
+  priority: RemediationPriority;
+  editScope: RemediationEditScope[];
+  problemSummary: string[];
+  constraints: string[];
+  targetMetrics: RemediationTargetMetric[];
+  acceptanceGate: RemediationAcceptanceGate;
+}): string {
+  const topCases = input.selectedCases.slice(0, 3);
+  const targetMetricBlock = input.targetMetrics.length
+    ? input.targetMetrics
+        .map(
+          (item) =>
+            `- ${item.displayName}: ${roundMetric(item.currentValue)} -> ${roundMetric(item.targetValue)} (${item.direction === "increase" ? "提高" : "降低"})`,
+        )
+        .join("\n")
+    : "- 以 replay win rate 与 offline regression gate 为主。";
+  return [
+    `# ${input.title}`,
+    "",
+    "## 什么时候使用",
+    `当 Zeval run \`${input.evaluate.runId}\` 暴露出以下问题时使用本 skill：`,
+    ...input.problemSummary.slice(0, 5).map((item) => `- ${item}`),
+    "",
+    "## 修复策略",
+    `- 优先级：${input.priority}`,
+    `- 优先修改层：${input.editScope.join(", ") || "prompt"}`,
+    "- 先修复覆盖面最大的失败标签，再处理单点异常。",
+    "- 不做无关重构；所有改动都要能被 reference/acceptance-gate.yaml 验证。",
+    "",
+    "## 关键 bad case",
+    ...topCases.map(
+      (item) =>
+        `- ${item.title}：severity=${item.severityScore.toFixed(2)}，tags=${item.tags.join(", ")}，建议=${item.suggestedAction}`,
+    ),
+    "",
+    "## 目标指标",
+    targetMetricBlock,
+    "",
+    "## 验收标准",
+    `- Replay win rate >= ${input.acceptanceGate.replay.minWinRate}`,
+    `- Offline eval max regressions <= ${input.acceptanceGate.offlineEval.maxRegressions}`,
+    "- `reference/badcases.jsonl` 中的关键样例不再触发同类失败。",
+    "- 如果修改 prompt/policy/orchestration/code，必须在提交说明里写清楚影响范围。",
+    "",
+    "## Reference",
+    "- `reference/issue-brief.md`：完整问题说明与证据。",
+    "- `reference/badcases.jsonl`：机器可读 bad case。",
+    "- `reference/remediation-spec.yaml`：修复范围、约束与目标指标。",
+    "- `reference/acceptance-gate.yaml`：验收门禁。",
+  ].join("\n");
+}
+
+/**
+ * Render README.md for agents consuming the skill folder.
+ *
+ * @param input Bundle rendering input.
+ * @returns Markdown content.
+ */
+function buildSkillReadme(input: {
+  packageId: string;
+  createdAt: string;
+  artifactDir: string;
+  skillFolderName: string;
+  evaluate: RemediationEvaluateInput;
+}): string {
+  return [
+    `# ${input.skillFolderName}`,
+    "",
+    "这是 Zeval 自动生成的 remediation skill 文件夹，面向 Claude Code / Codex 使用。",
+    "",
+    "## 使用方式",
+    "1. 先读 `SKILL.md`，理解问题、修复策略与验收标准。",
+    "2. 再读 `reference/issue-brief.md` 和 `reference/badcases.jsonl`，确认证据。",
+    "3. 按 `reference/remediation-spec.yaml` 限定的 edit_scope 修改系统。",
+    "4. 用 `reference/acceptance-gate.yaml` 验证 replay / offline eval 门禁。",
+    "",
+    "## 元数据",
+    `- package_id: ${input.packageId}`,
+    `- source_run_id: ${input.evaluate.runId}`,
+    `- generated_at: ${input.createdAt}`,
+    `- artifact_dir: ${input.artifactDir}`,
   ].join("\n");
 }
 

@@ -125,6 +125,31 @@
   gap: 12px;
 }
 
+.packageTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.packageTab {
+  appearance: none;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4a4a4a;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.packageTabActive {
+  border-color: #0b0b0b;
+  background: #0b0b0b;
+  color: #ffffff;
+}
+
 .metricCard p {
   margin: 0;
   color: #4a4a4a;

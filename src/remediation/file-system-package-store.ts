@@ -18,14 +18,30 @@ export class FileSystemRemediationPackageStore implements RemediationPackageStor
    */
   async save(snapshot: RemediationPackageSnapshot): Promise<void> {
     const packageDirectory = path.join(REMEDIATION_ROOT, sanitizePackageId(snapshot.packageId));
-    await mkdir(packageDirectory, { recursive: true });
+    const skillDirectory = snapshot.skillBundle
+      ? path.join(REMEDIATION_ROOT, sanitizePackageId(snapshot.skillBundle.folderName))
+      : packageDirectory;
+    const referenceDirectory = path.join(skillDirectory, "reference");
+    await mkdir(referenceDirectory, { recursive: true });
 
-    await Promise.all(
-      snapshot.files.map((file) =>
-        writeFile(path.join(packageDirectory, file.fileName), file.content, "utf8"),
-      ),
-    );
+    if (snapshot.skillBundle) {
+      await Promise.all(
+        snapshot.skillBundle.files.map((file) =>
+          writeFile(path.join(REMEDIATION_ROOT, path.relative(REMEDIATION_ROOT, file.relativePath)), file.content, "utf8"),
+        ),
+      );
+    } else {
+      await Promise.all(
+        snapshot.files.map((file) =>
+          writeFile(path.join(packageDirectory, file.fileName), file.content, "utf8"),
+        ),
+      );
+    }
+    await mkdir(packageDirectory, { recursive: true });
     await writeFile(path.join(packageDirectory, "manifest.json"), `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+    if (skillDirectory !== packageDirectory) {
+      await writeFile(path.join(skillDirectory, "manifest.json"), `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+    }
   }
 
   /**
@@ -54,6 +70,7 @@ export class FileSystemRemediationPackageStore implements RemediationPackageStor
           scenarioId: parsed.scenarioId,
           selectedCaseCount: parsed.selectedCaseCount,
           artifactDir: parsed.artifactDir,
+          skillFolder: parsed.skillFolder,
           mtimeMs: fileStat.mtimeMs,
         });
       } catch {
@@ -62,7 +79,13 @@ export class FileSystemRemediationPackageStore implements RemediationPackageStor
     }
 
     rows.sort((left, right) => right.mtimeMs - left.mtimeMs);
-    return rows.map((row) => ({
+    const deduped = new Map<string, RemediationPackageIndexRow & { mtimeMs: number }>();
+    for (const row of rows) {
+      if (!deduped.has(row.packageId)) {
+        deduped.set(row.packageId, row);
+      }
+    }
+    return [...deduped.values()].map((row) => ({
       packageId: row.packageId,
       createdAt: row.createdAt,
       runId: row.runId,
@@ -71,6 +94,7 @@ export class FileSystemRemediationPackageStore implements RemediationPackageStor
       scenarioId: row.scenarioId,
       selectedCaseCount: row.selectedCaseCount,
       artifactDir: row.artifactDir,
+      skillFolder: row.skillFolder,
     }));
   }
 

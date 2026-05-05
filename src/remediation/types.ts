@@ -56,6 +56,28 @@ export type RemediationPackageFile = {
 };
 
 /**
+ * One file inside the Claude Code / Codex skill bundle.
+ */
+export type RemediationSkillBundleFile = {
+  fileName: string;
+  relativePath: string;
+  content: string;
+  role: "overview" | "reference" | "readme";
+};
+
+/**
+ * Claude Code / Codex skill-shaped remediation bundle.
+ */
+export type RemediationSkillBundle = {
+  folderName: string;
+  rootPath: string;
+  skillFile: RemediationSkillBundleFile;
+  readmeFile: RemediationSkillBundleFile;
+  referenceFiles: RemediationSkillBundleFile[];
+  files: RemediationSkillBundleFile[];
+};
+
+/**
  * One saved remediation package snapshot.
  */
 export type RemediationPackageSnapshot = {
@@ -77,6 +99,8 @@ export type RemediationPackageSnapshot = {
   acceptanceGate: RemediationAcceptanceGate;
   artifactDir: string;
   files: RemediationPackageFile[];
+  skillFolder?: string;
+  skillBundle?: RemediationSkillBundle;
 };
 
 /**
@@ -106,6 +130,7 @@ export type RemediationPackageIndexRow = {
   scenarioId?: string;
   selectedCaseCount: number;
   artifactDir: string;
+  skillFolder?: string;
 };
 
 /**
