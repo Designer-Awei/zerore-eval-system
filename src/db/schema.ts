@@ -6,8 +6,11 @@
  */
 
 export const DB_TABLES = [
+  "organizations",
+  "projects",
   "workspaces",
   "users",
+  "project_members",
   "workspace_members",
   "api_keys",
   "audit_logs",
@@ -60,6 +63,8 @@ export type JsonObject = Record<string, unknown>;
 
 export type DbBaseEntity = {
   id: string;
+  organizationId?: string;
+  projectId?: string;
   workspaceId: string;
   createdAt: string;
 };

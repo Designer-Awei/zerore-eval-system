@@ -16,6 +16,8 @@ import type {
 import type { EvaluateResponse, ObjectiveMetrics } from "@/types/pipeline";
 
 export type EvaluationProjectionOptions = {
+  organizationId?: string;
+  projectId?: string;
   workspaceId: string;
   runId?: string;
   useLlm?: boolean;
@@ -57,6 +59,8 @@ export function buildEvaluationProjection(
   options: EvaluationProjectionOptions,
 ): EvaluationProjection {
   const workspaceId = options.workspaceId;
+  const organizationId = options.organizationId;
+  const projectId = options.projectId ?? workspaceId;
   const now = response.meta.generatedAt || new Date().toISOString();
   const runId = options.runId ?? response.runId;
   const evaluationRunId = stableId("evaluation-run", workspaceId, runId);
@@ -265,7 +269,11 @@ export function buildEvaluationProjection(
     ...businessKpiSignals,
     ...evidenceSpans,
     ...riskTags,
-  ];
+  ].map((record) => ({
+    ...record,
+    organizationId,
+    projectId,
+  }));
 
   return {
     records,
@@ -434,6 +442,8 @@ function buildBusinessKpiSignals(
 function toDbRecord(record: DbEvaluationProjectionRecord): DbRecord {
   return {
     id: record.id,
+    organizationId: record.organizationId,
+    projectId: record.projectId,
     workspaceId: record.workspaceId,
     type: record.table,
     payload: record,

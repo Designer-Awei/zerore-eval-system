@@ -1,6 +1,6 @@
-# Database Architecture
+# Zeval Database Architecture
 
-This directory defines the target relational storage model for ZERORE Eval System.
+This directory defines the target relational storage model for Zeval.
 
 The current app can still run with local files and the local JSON adapter. The database schema is the next production storage target and follows the SEAR-inspired principle documented in `eval-system-概述/5-SEAR数据哲学与下一阶段架构.md`:
 
@@ -11,13 +11,19 @@ The current app can still run with local files and the local JSON adapter. The d
 - PostgreSQL/Supabase is the intended production system of record.
 - Local JSON remains the development fallback and smoke artifact path.
 - Evaluate/baseline JSON files remain export and audit snapshots, not the long-term query model.
-- `zerore_records` is the temporary JSONB bridge table used by the current `ZeroreDatabase` interface.
+- Data is isolated by `organization_id -> project_id`. The current application
+  still exposes `workspaceId` in several store interfaces; in the Zeval data
+  model that value is treated as a deprecated compatibility alias for
+  `projectId`.
+- `zerore_records` is the temporary JSONB bridge table used by the current
+  `ZeroreDatabase` interface. It now carries `organization_id` and `project_id`
+  columns so bridge writes can respect the same tenancy boundary.
 
 ## Schema Groups
 
 `schema.sql` is organized around the product workflow:
 
-1. `workspaces`, `users`, `workspace_members`, `api_keys`, `audit_logs`
+1. `organizations`, `projects`, `users`, `project_members`, compatibility `workspaces`, `workspace_members`, `api_keys`, `audit_logs`
 2. `datasets`, `dataset_imports`, `sessions`, `message_turns`, `scenario_contexts`
 3. `evaluation_runs`, `topic_segments`, `objective_signals`, `subjective_signals`, `business_kpi_signals`, `evidence_spans`, `risk_tags`
 4. `gold_sets`, `gold_cases`, `gold_annotation_tasks`, `gold_label_drafts`, `gold_labels`, `judge_runs`, `judge_predictions`, `judge_agreement_reports`, `judge_drift_reports`
@@ -30,29 +36,34 @@ The migration should be incremental:
 1. Keep the existing pipeline and artifact outputs unchanged.
 2. Add an evaluate projection layer that converts `EvaluateResponse` into normalized database records. This is now implemented in `src/db/evaluation-projection.ts`.
 3. Write projections through the current `ZeroreDatabase` interface first. Synchronous `/api/evaluate` runs now write these records through the local JSON adapter.
-4. Add a Postgres adapter behind the same interface. This is available with `ZERORE_DATABASE_ADAPTER=postgres`.
+4. Add a Postgres adapter behind the same interface. This is available with `ZEVAL_DATABASE_ADAPTER=postgres`.
 5. Migrate gold set, bad case, agent run and validation stores one domain at a time.
+6. Replace `zerore_records` reads with typed `projects`, `evaluation_runs`,
+   `subjective_signals`, `objective_signals`, `jobs` and annotation tables.
 
 ## Adapter Configuration
 
 Default local mode:
 
 ```bash
-ZERORE_DATABASE_ADAPTER=local-json
+ZEVAL_DATABASE_ADAPTER=local-json
 ```
 
 Postgres/Supabase bridge mode:
 
 ```bash
-ZERORE_DATABASE_ADAPTER=postgres
+ZEVAL_DATABASE_ADAPTER=postgres
 DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@db.rukjxsykowetriaxifon.supabase.co:5432/postgres
-ZERORE_POSTGRES_SSL=auto
-ZERORE_POSTGRES_POOL_MAX=5
+ZEVAL_POSTGRES_SSL=auto
+ZEVAL_POSTGRES_POOL_MAX=5
+ZEVAL_DEFAULT_ORGANIZATION_ID=default-org
 DATASET_STORE_PROVIDER=database
 WORKBENCH_BASELINE_STORE_PROVIDER=database
 ```
 
-`ZERORE_POSTGRES_SSL` accepts:
+Legacy `ZERORE_*` variables still work as deprecated fallbacks.
+
+`ZEVAL_POSTGRES_SSL` accepts:
 
 - `auto`: enable relaxed SSL for common managed Postgres hosts such as Supabase/Neon.
 - `require`: always enable relaxed SSL.
@@ -70,7 +81,7 @@ npm run db:supabase:link
 npm run db:supabase:push
 ```
 
-After setting `ZERORE_DATABASE_ADAPTER=postgres` and `DATABASE_URL`, run:
+After setting `ZEVAL_DATABASE_ADAPTER=postgres` and `DATABASE_URL`, run:
 
 ```bash
 npm run db:smoke
@@ -82,7 +93,9 @@ npm run db:smoke:stores
 
 Every primary quality signal should be traceable to:
 
-- `workspace_id`
+- `organization_id`
+- `project_id`
+- compatibility `workspace_id`
 - `run_id`
 - `session_id`
 - a metric key or signal key

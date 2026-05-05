@@ -1,4 +1,4 @@
--- ZERORE Eval System relational schema
+-- Zeval relational schema
 -- Target: PostgreSQL 15+ / Supabase-compatible PostgreSQL
 -- Principle: eval output is a warehouse of traceable quality signals, not just a report JSON.
 
@@ -13,13 +13,41 @@ create type recovery_status as enum ('none', 'completed', 'failed');
 create type agent_run_status as enum ('queued', 'running', 'succeeded', 'failed', 'canceled');
 create type validation_run_status as enum ('queued', 'running', 'passed', 'failed', 'errored', 'canceled');
 
-create table workspaces (
+create table organizations (
   id text primary key,
   name text not null,
   plan_key text not null default 'dev',
   data_region text,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table projects (
+  id text primary key,
+  organization_id text not null references organizations(id) on delete cascade,
+  name text not null,
+  data_region text,
+  environment text not null default 'production',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
+);
+
+-- Deprecated compatibility table. Existing application stores still call this
+-- identifier workspace_id, but it now maps 1:1 to projects.id.
+create table workspaces (
+  id text primary key references projects(id) on delete cascade,
+  organization_id text not null references organizations(id) on delete cascade,
+  project_id text not null unique,
+  name text not null,
+  plan_key text not null default 'dev',
+  data_region text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key (organization_id, project_id) references projects(organization_id, id) on delete cascade,
+  unique (organization_id, project_id)
 );
 
 create table users (
@@ -37,6 +65,17 @@ create table workspace_members (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (workspace_id, user_id)
+);
+
+create table project_members (
+  organization_id text not null references organizations(id) on delete cascade,
+  project_id text not null,
+  user_id text not null references users(id) on delete cascade,
+  role workspace_role not null default 'member',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key (organization_id, project_id) references projects(organization_id, id) on delete cascade,
+  primary key (organization_id, project_id, user_id)
 );
 
 create table api_keys (
@@ -66,6 +105,8 @@ create table audit_logs (
 -- It lets the projection layer write JSONB records to Postgres before every
 -- domain store has been migrated to typed relational tables.
 create table zerore_records (
+  organization_id text not null default 'default-org',
+  project_id text not null,
   workspace_id text not null,
   type text not null,
   id text not null,
@@ -502,6 +543,9 @@ create table jobs (
 
 create index idx_dataset_imports_workspace_created on dataset_imports(workspace_id, created_at desc);
 create index idx_zerore_records_workspace_type_updated on zerore_records(workspace_id, type, updated_at desc);
+create index idx_zerore_records_org_project_type_updated on zerore_records(organization_id, project_id, type, updated_at desc);
+create index idx_projects_organization_created on projects(organization_id, created_at desc);
+create index idx_project_members_user on project_members(user_id);
 create index idx_sessions_workspace_dataset on sessions(workspace_id, dataset_id);
 create index idx_message_turns_session_turn on message_turns(session_id, turn_index);
 create index idx_evaluation_runs_workspace_generated on evaluation_runs(workspace_id, generated_at desc);

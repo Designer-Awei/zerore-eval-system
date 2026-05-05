@@ -73,6 +73,8 @@ export async function POST(request: Request) {
         sessions,
         rows: rawRows.length,
         hasTimestamp,
+        organizationId: context.organizationId,
+        projectId: context.projectId,
         workspaceId: context.workspaceId,
         piiRedaction: redaction.report,
       },

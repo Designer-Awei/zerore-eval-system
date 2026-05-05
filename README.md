@@ -91,17 +91,17 @@ Zeval 当前不追求做一个“大而全 eval 平台”，而是优先做：
 
 不包含：
 
-- 生产级登录权限系统（当前已有 header/dev fallback 的本地 auth/workspace 基础层）
-- 生产级多租户完整隔离系统（当前已有 workspace-aware path / local DB 抽象）
+- 生产级登录权限系统（当前已有 header/dev fallback 的本地 auth / organization / project 基础层）
+- 生产级多租户完整隔离系统（当前已有 Organization -> Project scope、project-aware path / local DB 抽象）
 - 外部托管任务队列与复杂分布式编排（当前已有本地 durable job queue / worker adapter）
 
 ## 3.1 基础设施进展
 
 当前为了从 MVP 过渡到可商用架构，已经先落了一层可替换基础设施：
 
-- `src/auth/context.ts`：本地 auth/workspace context，优先支持 `x-zeval-user-id`、`x-zeval-workspace-id`、`x-zeval-role`，并兼容旧 `x-zerore-*` header。
+- `src/auth/context.ts`：本地 auth / tenancy context，优先支持 `x-zeval-organization-id`、`x-zeval-project-id`、`x-zeval-user-id`、`x-zeval-role`，并兼容旧 `x-zeval-workspace-id` / `x-zerore-*` header。当前 `workspaceId` 是 `projectId` 的兼容别名。
 - `src/pii/redaction.ts`：默认开启的 PII 脱敏，已接入 ingest / evaluate；可用 `PII_REDACTION_ENABLED=false` 关闭。
-- `src/db/*`：workspace 分区的 local JSON database adapter，后续替换 Postgres/Supabase 时保持接口不变。
+- `src/db/*`：Organization -> Project 分区的 local JSON / Postgres database adapter，后续迁到 typed Zeval tables 时保持上层接口不变。
 - `src/db/postgres-database.ts`：Postgres/Supabase JSONB bridge adapter，可通过 `ZEVAL_DATABASE_ADAPTER=postgres`（兼容 `ZERORE_DATABASE_ADAPTER`）与 `DATABASE_URL` 切换。
 - `DATASET_STORE_PROVIDER=database` / `WORKBENCH_BASELINE_STORE_PROVIDER=database`：可让评测集与工作台 baseline 走当前数据库 adapter。
 - `src/queue/index.ts`、`/api/jobs` 与 `npm run jobs:work`：本地 durable job queue，可查询、重试、取消、恢复 stale running job；后续可替换 Redis/BullMQ/Temporal。
@@ -205,8 +205,8 @@ Zeval 当前不追求做一个“大而全 eval 平台”，而是优先做：
 
 - 现阶段：`FileSystemDatasetStore`（本地文件）用于 MVP 快速落地与可视化调试。
 - 后续阶段：可新增并切换到数据库/BaaS 实现（例如 `PostgreSQL`、`Supabase`）。
-- 数据库目标结构见 `database/schema.sql`，其核心原则是把评测输出拆成 `evaluation_runs / topic_segments / objective_signals / subjective_signals / business_kpi_signals / evidence_spans / risk_tags` 等可 join 的质量信号表。
-- 当前数据库 adapter 已支持 `local-json` 与 `postgres` 两种模式；Postgres 模式先写历史兼容的 `zerore_records` JSONB bridge table，后续再迁移到 typed Zeval tables。
+- 数据库目标结构见 `database/schema.sql`，其核心原则是按 `organizations -> projects` 隔离，并把评测输出拆成 `evaluation_runs / topic_segments / objective_signals / subjective_signals / business_kpi_signals / evidence_spans / risk_tags` 等可 join 的质量信号表。
+- 当前数据库 adapter 已支持 `local-json` 与 `postgres` 两种模式；Postgres 模式先写历史兼容的 `zerore_records` JSONB bridge table，但该 bridge 已携带 `organization_id` / `project_id`，后续再迁移到 typed Zeval tables。
 
 建议迁移路径：
 

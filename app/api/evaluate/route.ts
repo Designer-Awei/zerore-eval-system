@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getZeroreRequestContext } from "@/auth/context";
+import { getZeroreRequestContext, getZevalDataScope } from "@/auth/context";
 import { buildEvaluationProjection, persistEvaluationProjection } from "@/db/evaluation-projection";
 import { createZeroreDatabase } from "@/db";
 import { redactRawRows } from "@/pii/redaction";
@@ -15,6 +15,7 @@ import { evaluateRequestSchema } from "@/schemas/api";
 export async function POST(request: Request) {
   try {
     const context = getZeroreRequestContext(request);
+    const dataScope = getZevalDataScope(context);
     const parsedBody = evaluateRequestSchema.safeParse(await request.json());
     if (!parsedBody.success) {
       return NextResponse.json(
@@ -30,9 +31,12 @@ export async function POST(request: Request) {
     if (body.asyncMode) {
       const job = await enqueueLocalJob({
         workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
+        projectId: context.projectId,
         type: "evaluate",
         payload: {
           ...body,
+          dataScope,
           rawRows,
           runId,
           piiRedaction: redaction.report,
@@ -59,6 +63,8 @@ export async function POST(request: Request) {
       artifactBaseName: body.artifactBaseName,
       extendedInputs: body.extendedInputs,
     });
+    response.meta.organizationId = context.organizationId;
+    response.meta.projectId = context.projectId;
     response.meta.workspaceId = context.workspaceId;
     response.meta.piiRedaction = redaction.report;
     if (redaction.report.redactedFields > 0) {
@@ -68,6 +74,8 @@ export async function POST(request: Request) {
     }
     try {
       const projection = buildEvaluationProjection(response, {
+        organizationId: context.organizationId,
+        projectId: context.projectId,
         workspaceId: context.workspaceId,
         runId,
         useLlm,

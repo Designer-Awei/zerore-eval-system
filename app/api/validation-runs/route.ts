@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     if (parsedBody.data.asyncMode) {
       const job = await enqueueLocalJob({
         workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
+        projectId: context.projectId,
         type: "validation_run",
         payload: parsedBody.data,
         maxAttempts: 2,

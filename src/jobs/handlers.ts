@@ -54,10 +54,14 @@ async function runEvaluateJob(job: QueueJobRecord): Promise<unknown> {
     artifactBaseName: body.artifactBaseName,
     extendedInputs: body.extendedInputs,
   });
+  response.meta.organizationId = job.organizationId;
+  response.meta.projectId = job.projectId;
   response.meta.workspaceId = job.workspaceId;
   response.meta.piiRedaction = redaction.report;
 
   const projection = buildEvaluationProjection(response, {
+    organizationId: job.organizationId,
+    projectId: job.projectId,
     workspaceId: job.workspaceId,
     runId,
     useLlm,

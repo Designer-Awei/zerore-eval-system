@@ -4,6 +4,8 @@
 
 export type DbRecord = {
   id: string;
+  organizationId?: string;
+  projectId?: string;
   workspaceId: string;
   type: string;
   payload: unknown;
@@ -11,10 +13,15 @@ export type DbRecord = {
   updatedAt: string;
 };
 
+export type DbDataScope = {
+  organizationId?: string;
+  projectId?: string;
+};
+
 export interface ZeroreDatabase {
   upsert(record: DbRecord): Promise<void>;
-  get(workspaceId: string, type: string, id: string): Promise<DbRecord | null>;
-  list(workspaceId: string, type: string): Promise<DbRecord[]>;
+  get(workspaceId: string, type: string, id: string, scope?: DbDataScope): Promise<DbRecord | null>;
+  list(workspaceId: string, type: string, scope?: DbDataScope): Promise<DbRecord[]>;
 }
 
 export type ZeroreDatabaseAdapter = "local-json" | "postgres";

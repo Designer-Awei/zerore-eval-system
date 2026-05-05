@@ -45,6 +45,8 @@ export async function POST(request: Request) {
     }
     const job = await enqueueLocalJob({
       workspaceId: context.workspaceId,
+      organizationId: context.organizationId,
+      projectId: context.projectId,
       type: body.type,
       payload: body.payload ?? {},
       maxAttempts: body.maxAttempts,

@@ -11,6 +11,8 @@ export type QueueJobStatus = "queued" | "running" | "succeeded" | "failed" | "ca
 
 export type QueueJobRecord<TResult = unknown> = {
   jobId: string;
+  organizationId?: string;
+  projectId?: string;
   workspaceId: string;
   type: string;
   status: QueueJobStatus;
@@ -45,6 +47,8 @@ const DEFAULT_STALE_RUNNING_MS = 15 * 60 * 1000;
  */
 export async function enqueueLocalJob(input: {
   workspaceId: string;
+  organizationId?: string;
+  projectId?: string;
   type: string;
   payload: unknown;
   maxAttempts?: number;
@@ -53,6 +57,8 @@ export async function enqueueLocalJob(input: {
   const now = new Date().toISOString();
   const job: QueueJobRecord = {
     jobId: `job_${Date.now()}_${randomBytes(3).toString("hex")}`,
+    organizationId: input.organizationId,
+    projectId: input.projectId ?? input.workspaceId,
     workspaceId: input.workspaceId,
     type: input.type,
     status: "queued",
@@ -348,6 +354,7 @@ function normalizeQueueJob(job: QueueJobRecord, workspaceId: string): QueueJobRe
   return {
     ...job,
     workspaceId: job.workspaceId || workspaceId,
+    projectId: job.projectId ?? job.workspaceId ?? workspaceId,
     attempts: job.attempts ?? 0,
     maxAttempts: job.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     availableAt: job.availableAt ?? job.createdAt ?? new Date().toISOString(),

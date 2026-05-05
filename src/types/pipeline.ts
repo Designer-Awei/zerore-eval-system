@@ -366,6 +366,8 @@ export type EvaluateMeta = {
     redactedFields: number;
     categories: string[];
   };
+  organizationId?: string;
+  projectId?: string;
   workspaceId?: string;
 };
 
@@ -383,6 +385,8 @@ export type IngestResponse = {
     sessions: number;
     rows: number;
     hasTimestamp: boolean;
+    organizationId?: string;
+    projectId?: string;
     workspaceId?: string;
     piiRedaction?: {
       enabled: boolean;

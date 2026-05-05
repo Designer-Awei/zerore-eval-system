@@ -23,7 +23,7 @@ async function main(): Promise<void> {
     type,
     payload: {
       ok: true,
-      adapter: process.env.ZERORE_DATABASE_ADAPTER ?? "local-json",
+      adapter: process.env.ZEVAL_DATABASE_ADAPTER ?? process.env.ZERORE_DATABASE_ADAPTER ?? "local-json",
       projectRef: process.env.SUPABASE_PROJECT_REF,
     },
     createdAt: now,
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         ok: true,
-        adapter: process.env.ZERORE_DATABASE_ADAPTER ?? "local-json",
+        adapter: process.env.ZEVAL_DATABASE_ADAPTER ?? process.env.ZERORE_DATABASE_ADAPTER ?? "local-json",
         workspaceId,
         type,
         id,

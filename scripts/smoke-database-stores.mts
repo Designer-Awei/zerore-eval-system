@@ -122,7 +122,7 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         ok: true,
-        adapter: process.env.ZERORE_DATABASE_ADAPTER ?? "local-json",
+        adapter: process.env.ZEVAL_DATABASE_ADAPTER ?? process.env.ZERORE_DATABASE_ADAPTER ?? "local-json",
         datasetProvider: process.env.DATASET_STORE_PROVIDER ?? "filesystem",
         workbenchProvider: process.env.WORKBENCH_BASELINE_STORE_PROVIDER ?? "filesystem",
         workspaceId,

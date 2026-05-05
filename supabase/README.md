@@ -30,16 +30,21 @@ npm run db:supabase:push
 Use local JSON while developing without Supabase:
 
 ```bash
-ZERORE_DATABASE_ADAPTER=local-json
+ZEVAL_DATABASE_ADAPTER=local-json
 ```
 
 Use Supabase/Postgres for server-side projection writes:
 
 ```bash
-ZERORE_DATABASE_ADAPTER=postgres
+ZEVAL_DATABASE_ADAPTER=postgres
 DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@db.rukjxsykowetriaxifon.supabase.co:5432/postgres
-ZERORE_POSTGRES_SSL=require
+ZEVAL_POSTGRES_SSL=require
+ZEVAL_DEFAULT_ORGANIZATION_ID=default-org
 ```
+
+The schema is organized around `organizations -> projects`. Older code paths
+still pass `workspaceId`; Zeval treats that value as the project id until all
+stores are migrated to typed project tables.
 
 If Supabase direct connections are not available from your network, use the pooler connection string from Supabase Dashboard -> Project Settings -> Database.
 
