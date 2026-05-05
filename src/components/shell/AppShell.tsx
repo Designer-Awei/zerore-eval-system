@@ -16,7 +16,6 @@ const NAV_ITEMS = [
   { label: "案例池", href: "/datasets", match: "/datasets" },
   { label: "在线评测", href: "/online-eval", match: "/online-eval" },
   { label: "调优包", href: "/remediation-packages", match: "/remediation-packages" },
-  { label: "观测", href: "/observability", match: "/observability" },
   { label: "合成", href: "/synthesize", match: "/synthesize" },
   { label: "集成", href: "/integrations", match: "/integrations" },
 ];

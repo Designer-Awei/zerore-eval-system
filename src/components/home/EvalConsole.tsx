@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { BadCasePanel } from "@/components/home/BadCasePanel";
+import { BaselineTrendPanel } from "@/components/home/BaselineTrendPanel";
 import { previewCsvLines, splitCsvLine } from "@/lib/csv";
 import { inferFormatFromFileName } from "@/parsers";
 import { ChartsPanel } from "@/components/home/ChartsPanel";
@@ -775,6 +776,7 @@ export function EvalConsole() {
               onAdvance={() => goToStep(2)}
               canAdvance={Boolean(evaluateResult)}
               selectedScenarioLabel={selectedScenarioLabel}
+              baselineCustomerId={baselineCustomerId}
             />
           ) : null}
 
@@ -1256,6 +1258,7 @@ type StepEvaluateProps = {
   onAdvance: () => void;
   canAdvance: boolean;
   selectedScenarioLabel: string;
+  baselineCustomerId: string;
 };
 
 function StepEvaluate(props: StepEvaluateProps) {
@@ -1331,6 +1334,7 @@ function StepEvaluate(props: StepEvaluateProps) {
                   <span className={styles.panelMeta}>SUMMARY</span>
                 </div>
                 <SummaryGrid cards={props.summaryCards} />
+                <BaselineTrendPanel customerId={props.baselineCustomerId} />
               </section>
               <StructuredTaskMetricsPanel metrics={props.evaluateResult.structuredTaskMetrics} />
               <section className={`${styles.panel} ${styles.panelFull}`}>

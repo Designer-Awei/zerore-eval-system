@@ -201,7 +201,7 @@ const ZH: LandingCopy = {
     {
       question: "需要接入内部系统吗？",
       answer:
-        "不用。最低支持 CSV / JSON / TXT / MD 的对话日志直接上传。在接入 SDK 或 OpenTelemetry GenAI 语义后可以自动采集生产 trace。",
+        "不用。最低支持 CSV / JSON / TXT / MD 的对话日志直接上传。接入 SDK 后可以持续保存历史 baseline，并在工作台叠加趋势对比。",
     },
     {
       question: "LLM judge 的稳定性如何保障？",
@@ -389,7 +389,7 @@ const EN: LandingCopy = {
     {
       question: "Do I need to integrate internal systems?",
       answer:
-        "No. The minimum path accepts CSV / JSON / TXT / MD chat logs uploaded directly. After SDK or OpenTelemetry GenAI integration, production traces stream in automatically.",
+        "No. The minimum path accepts CSV / JSON / TXT / MD chat logs uploaded directly. After SDK integration, saved baselines can be compared as trend overlays in the workbench.",
     },
     {
       question: "How is the LLM judge kept stable?",
