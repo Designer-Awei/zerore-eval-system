@@ -29,6 +29,9 @@ type SiliconFlowChatResponse = {
   };
 };
 
+const DEFAULT_LLM_RETRY_ATTEMPTS = 3;
+const DEFAULT_LLM_TIMEOUT_MS = 45000;
+
 type SiliconFlowLogContext = {
   stage: string;
   runId?: string;
@@ -55,71 +58,82 @@ export async function requestSiliconFlowChatCompletion(
     throw new Error("未配置有效的 ZEVAL_JUDGE_API_KEY / SILICONFLOW_API_KEY，请不要使用 YOUR_API_KEY_HERE 占位符。");
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45000);
   const startedAt = Date.now();
   const logPrefix = buildLlmLogPrefix(context);
   const promptVersion = getPromptVersionForRequestStage(context.stage);
   const judgeProfile = getZevalJudgeProfileSnapshot();
+  const maxAttempts = resolvePositiveInteger(process.env.ZEVAL_JUDGE_RETRY_ATTEMPTS, DEFAULT_LLM_RETRY_ATTEMPTS);
 
-  try {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DEFAULT_LLM_TIMEOUT_MS);
     console.info(
-      `${logPrefix} START model=${model} judgeProfile=${judgeProfile.profileVersion} promptVersion=${promptVersion ?? "unversioned"} messages=${messages.length}`,
+      `${logPrefix} START attempt=${attempt}/${maxAttempts} model=${model} judgeProfile=${judgeProfile.profileVersion} promptVersion=${promptVersion ?? "unversioned"} messages=${messages.length}`,
     );
-    const requestBody: Record<string, unknown> = {
-      model,
-      messages,
-      stream: false,
-      temperature: ZEVAL_JUDGE_TEMPERATURE,
-      top_p: ZEVAL_JUDGE_TOP_P,
-      max_tokens: ZEVAL_JUDGE_MAX_TOKENS,
-      response_format: {
-        type: "json_object",
-      },
-    };
-    const enableThinking = resolveOptionalBoolean(
-      process.env.ZEVAL_JUDGE_ENABLE_THINKING ??
-        process.env.ZEVAL_LLM_ENABLE_THINKING ??
-        process.env.SILICONFLOW_ENABLE_THINKING,
-    );
-    if (typeof enableThinking === "boolean") {
-      requestBody.enable_thinking = enableThinking;
-    }
-
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-      cache: "no-store",
-    });
-
-    const payload = (await response.json()) as SiliconFlowChatResponse;
-    if (!response.ok) {
-      throw new Error(payload.error?.message ?? `SiliconFlow 请求失败: ${response.status}`);
-    }
-
-    const content =
-      payload.choices?.[0]?.message?.content ??
-      payload.choices?.[0]?.message?.reasoning_content;
-    if (!content) {
-      throw new Error(
-        `SiliconFlow 未返回有效内容。message=${JSON.stringify(payload.choices?.[0]?.message ?? null)}`,
+    try {
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages,
+        stream: false,
+        temperature: ZEVAL_JUDGE_TEMPERATURE,
+        top_p: ZEVAL_JUDGE_TOP_P,
+        max_tokens: ZEVAL_JUDGE_MAX_TOKENS,
+        response_format: {
+          type: "json_object",
+        },
+      };
+      const enableThinking = resolveOptionalBoolean(
+        process.env.ZEVAL_JUDGE_ENABLE_THINKING ??
+          process.env.ZEVAL_LLM_ENABLE_THINKING ??
+          process.env.SILICONFLOW_ENABLE_THINKING,
       );
-    }
+      if (typeof enableThinking === "boolean") {
+        requestBody.enable_thinking = enableThinking;
+      }
 
-    console.info(`${logPrefix} SUCCESS durationMs=${Date.now() - startedAt}`);
-    return content;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown";
-    console.error(`${logPrefix} ERROR durationMs=${Date.now() - startedAt} message=${message}`);
-    throw error;
-  } finally {
-    clearTimeout(timeout);
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      const payload = await parseSiliconFlowResponse(response);
+      if (!response.ok) {
+        const providerMessage = payload.error?.message ? ` ${payload.error.message}` : "";
+        throw new Error(`SiliconFlow 请求失败: ${response.status}${providerMessage}`);
+      }
+
+      const content =
+        payload.choices?.[0]?.message?.content ??
+        payload.choices?.[0]?.message?.reasoning_content;
+      if (!content) {
+        throw new Error(
+          `SiliconFlow 未返回有效内容。message=${JSON.stringify(payload.choices?.[0]?.message ?? null)}`,
+        );
+      }
+
+      console.info(`${logPrefix} SUCCESS attempt=${attempt}/${maxAttempts} durationMs=${Date.now() - startedAt}`);
+      return content;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown";
+      console.error(
+        `${logPrefix} ERROR attempt=${attempt}/${maxAttempts} durationMs=${Date.now() - startedAt} message=${message}`,
+      );
+      if (attempt >= maxAttempts || !isRetryableLlmError(error)) {
+        throw error;
+      }
+      await sleep(buildRetryDelayMs(attempt));
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  throw new Error("LLM Judge 重试耗尽。");
 }
 
 /**
@@ -211,9 +225,7 @@ type SiliconFlowRuntimeConfig = {
   model: string;
 };
 
-let cachedFileConfig: Partial<SiliconFlowRuntimeConfig> | null = null;
 let cachedEnvConfig: Partial<SiliconFlowRuntimeConfig> | null = null;
-let hasLoggedEnvExampleFallback = false;
 let hasLoggedEnvFallback = false;
 
 /**
@@ -225,26 +237,22 @@ let hasLoggedEnvFallback = false;
  */
 function getSiliconFlowRuntimeConfig(): SiliconFlowRuntimeConfig {
   const envConfig = readEnvConfig();
-  const fallback = readEnvExampleConfig();
   const apiKey =
     process.env.ZEVAL_JUDGE_API_KEY ??
     process.env.ZEVAL_LLM_API_KEY ??
     process.env.SILICONFLOW_API_KEY ??
-    envConfig.apiKey ??
-    fallback.apiKey;
+    envConfig.apiKey;
   const baseUrl =
     process.env.ZEVAL_JUDGE_BASE_URL ??
     process.env.ZEVAL_LLM_BASE_URL ??
     process.env.SILICONFLOW_BASE_URL ??
     envConfig.baseUrl ??
-    fallback.baseUrl ??
     "https://api.siliconflow.cn/v1";
   const model =
     process.env.ZEVAL_JUDGE_MODEL ??
     process.env.ZEVAL_LLM_MODEL ??
     process.env.SILICONFLOW_MODEL ??
     envConfig.model ??
-    fallback.model ??
     "Qwen/Qwen3.5-27B";
 
   if (!isUsableApiKey(apiKey)) {
@@ -262,23 +270,24 @@ function getSiliconFlowRuntimeConfig(): SiliconFlowRuntimeConfig {
     hasLoggedEnvFallback = true;
   }
 
-  if (
-    !process.env.ZEVAL_JUDGE_API_KEY &&
-    !process.env.ZEVAL_LLM_API_KEY &&
-    !process.env.SILICONFLOW_API_KEY &&
-    !envConfig.apiKey &&
-    fallback.apiKey &&
-    !hasLoggedEnvExampleFallback
-  ) {
-    console.warn("[LLM] Using .env.example fallback for Zeval judge credentials.");
-    hasLoggedEnvExampleFallback = true;
-  }
-
   return {
     apiKey,
     baseUrl,
     model,
   };
+}
+
+/**
+ * Parse a provider response body while preserving the HTTP status for errors.
+ * @param response Fetch response from SiliconFlow.
+ * @returns Parsed provider payload.
+ */
+async function parseSiliconFlowResponse(response: Response): Promise<SiliconFlowChatResponse> {
+  try {
+    return (await response.json()) as SiliconFlowChatResponse;
+  } catch {
+    return { error: { message: `SiliconFlow 返回了非 JSON 响应: ${response.status}` } };
+  }
 }
 
 /**
@@ -312,6 +321,52 @@ function resolveOptionalBoolean(value: string | undefined): boolean | undefined 
 }
 
 /**
+ * Resolve a positive integer environment override.
+ * @param value Raw environment value.
+ * @param fallback Fallback when the value is absent or invalid.
+ * @returns Positive integer.
+ */
+function resolvePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * Decide whether one LLM error is transient enough to retry.
+ * @param error Error thrown by fetch or provider validation.
+ * @returns Whether the request should be retried.
+ */
+function isRetryableLlmError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /abort|timeout|timed out|fetch failed|network/i.test(message) ||
+    /SiliconFlow 请求失败: (408|409|425|429|5\d\d)/.test(message) ||
+    /非 JSON 响应: (408|409|425|429|5\d\d)/.test(message)
+  );
+}
+
+/**
+ * Build a short exponential backoff with jitter for LLM retries.
+ * @param attempt Current 1-based attempt number.
+ * @returns Delay in milliseconds before the next attempt.
+ */
+function buildRetryDelayMs(attempt: number): number {
+  const base = Math.min(5000, 500 * 2 ** Math.max(0, attempt - 1));
+  return base + Math.floor(Math.random() * 250);
+}
+
+/**
+ * Sleep for a bounded retry delay.
+ * @param ms Delay in milliseconds.
+ * @returns Promise resolved after the delay.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
  * Read root .env as a local runtime source.
  * @returns Parsed partial config from .env.
  */
@@ -322,19 +377,6 @@ function readEnvConfig(): Partial<SiliconFlowRuntimeConfig> {
 
   cachedEnvConfig = readSiliconFlowConfigFromFile(".env");
   return cachedEnvConfig;
-}
-
-/**
- * Read root .env.example as a documented fallback source.
- * @returns Parsed partial config from .env.example.
- */
-function readEnvExampleConfig(): Partial<SiliconFlowRuntimeConfig> {
-  if (cachedFileConfig) {
-    return cachedFileConfig;
-  }
-
-  cachedFileConfig = readSiliconFlowConfigFromFile(".env.example");
-  return cachedFileConfig;
 }
 
 /**

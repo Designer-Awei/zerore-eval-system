@@ -29,6 +29,7 @@ import type {
 
 export type EvaluateRunOptions = {
   useLlm: boolean;
+  judgeRequired?: boolean;
   runId: string;
   scenarioId?: string;
   scenarioContext?: ScenarioEvaluateContext;
@@ -64,8 +65,12 @@ export async function runEvaluatePipeline(
   options: EvaluateRunOptions,
 ): Promise<EvaluateResponse & { artifactPath?: string }> {
   const warnings: string[] = [];
+  const judgeRequired = options.judgeRequired ?? options.useLlm;
   if (!rawRows.every((row) => Boolean(row.timestamp))) {
     warnings.push("检测到缺失 timestamp，部分时序指标已降级。");
+  }
+  if (judgeRequired && !options.useLlm) {
+    throw new Error("LLM Judge 是当前评估的强依赖，但本次请求关闭了 useLlm。");
   }
 
   const { enrichedRows, topicSegments } = await runEvaluateStage(options, "parse", "解析数据", () =>
@@ -77,7 +82,7 @@ export async function runEvaluatePipeline(
     buildObjectiveMetrics(enrichedRows),
   );
   const subjectiveMetrics = await runEvaluateStage(options, "subjective", "主观指标", () =>
-    buildSubjectiveMetrics(enrichedRows, options.useLlm, options.runId),
+    buildSubjectiveMetrics(enrichedRows, options.useLlm, options.runId, { judgeRequired }),
   );
   const scenarioTemplate = options.scenarioId ? getScenarioTemplateById(options.scenarioId) : null;
   if (options.scenarioId && !scenarioTemplate) {
@@ -138,7 +143,7 @@ export async function runEvaluatePipeline(
     ),
   }));
 
-  if (subjectiveMetrics.status !== "ready") {
+  if (subjectiveMetrics.status !== "ready" && !judgeRequired) {
     warnings.push("主观评估当前为降级模式（LLM judge 调用失败或未启用）。");
   }
 

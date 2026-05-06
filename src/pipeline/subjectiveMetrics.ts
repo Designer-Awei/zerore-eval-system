@@ -16,6 +16,11 @@ import type {
 } from "@/types/pipeline";
 
 const SUBJECTIVE_DIMENSIONS = ["共情程度", "答非所问/无视风险", "说教感/压迫感", "情绪恢复能力"] as const;
+const DEFAULT_SESSION_JUDGE_CONCURRENCY = 4;
+
+type SubjectiveMetricsOptions = {
+  judgeRequired?: boolean;
+};
 
 type LlmJudgePayload = {
   dimensions?: Array<{
@@ -27,17 +32,23 @@ type LlmJudgePayload = {
   }>;
 };
 
+type LlmJudgeDimensionPayload = NonNullable<LlmJudgePayload["dimensions"]>[number];
+
 /**
  * Build subjective metrics from enriched rows.
  * @param rows Enriched rows.
  * @param useLlm Whether llm mode was requested.
+ * @param runId Optional run id for logging.
+ * @param options Optional strict judge behavior.
  * @returns Subjective metric summary.
  */
 export async function buildSubjectiveMetrics(
   rows: EnrichedChatlogRow[],
   useLlm: boolean,
   runId?: string,
+  options: SubjectiveMetricsOptions = {},
 ): Promise<SubjectiveMetrics> {
+  const judgeRequired = options.judgeRequired ?? false;
   const signals = buildImplicitSignals(rows);
   const emotionCurve = rows.map((row) => ({
     sessionId: row.sessionId,
@@ -50,8 +61,12 @@ export async function buildSubjectiveMetrics(
   }));
   const emotionTurningPoints = buildEmotionTurningPoints(rows);
   const fallbackDimensions = buildRuleBasedDimensions(rows, signals);
-  const goalCompletions = await buildGoalCompletions(rows, useLlm, runId);
-  const recoveryTraces = await buildRecoveryTraces(rows, goalCompletions, useLlm, runId);
+  if (!useLlm && judgeRequired) {
+    throw new Error("LLM Judge 是当前评估的强依赖，但本次请求关闭了 useLlm。");
+  }
+
+  const goalCompletions = await buildGoalCompletions(rows, useLlm, runId, { judgeRequired });
+  const recoveryTraces = await buildRecoveryTraces(rows, goalCompletions, useLlm, runId, { judgeRequired });
 
   if (!useLlm) {
     return {
@@ -67,16 +82,22 @@ export async function buildSubjectiveMetrics(
 
   try {
     const grouped = groupRowsBySession(rows);
-    const sessionReviews = await Promise.all(
-      [...grouped.entries()].map(async ([sessionId, sessionRows]) => {
+    const sessionReviews = await mapWithConcurrency(
+      [...grouped.entries()],
+      resolveSessionJudgeConcurrency(),
+      async ([sessionId, sessionRows]) => {
         try {
           return {
             sessionId,
-            dimensions: await judgeSessionDimensionsWithLlm(sessionRows, signals, runId),
+            dimensions: await judgeSessionDimensionsWithLlm(sessionRows, signals, runId, { requireComplete: judgeRequired }),
             weight: sessionRows.length,
             succeeded: true,
           };
         } catch (error) {
+          if (judgeRequired) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`LLM Judge 失败，session=${sessionId}：${message}`);
+          }
           console.error("Session subjective judge failed:", sessionId, error);
           return {
             sessionId,
@@ -85,7 +106,7 @@ export async function buildSubjectiveMetrics(
             succeeded: false,
           };
         }
-      }),
+      },
     );
 
     return {
@@ -101,6 +122,9 @@ export async function buildSubjectiveMetrics(
       recoveryTraces,
     };
   } catch (error) {
+    if (judgeRequired) {
+      throw error;
+    }
     console.error("SiliconFlow subjective judge failed:", error);
     return {
       status: "degraded",
@@ -124,6 +148,7 @@ async function judgeSessionDimensionsWithLlm(
   rows: EnrichedChatlogRow[],
   signals: ImplicitSignal[],
   runId?: string,
+  options: { requireComplete?: boolean } = {},
 ): Promise<SubjectiveDimensionResult[]> {
   const fallbackDimensions = buildRuleBasedDimensions(rows, signals);
   const transcript = buildSessionJudgeTranscript(rows, signals);
@@ -165,7 +190,13 @@ async function judgeSessionDimensionsWithLlm(
     const fallback = fallbackDimensions[index];
     const candidate = byName.get(dimension);
     if (!candidate) {
+      if (options.requireComplete) {
+        throw new Error(`LLM Judge 输出缺少维度：${dimension}`);
+      }
       return fallback;
+    }
+    if (options.requireComplete && !isCompleteDimensionPayload(candidate)) {
+      throw new Error(`LLM Judge 输出维度不完整：${dimension}`);
     }
 
     return {
@@ -178,6 +209,60 @@ async function judgeSessionDimensionsWithLlm(
       ),
     };
   });
+}
+
+/**
+ * Check whether one LLM dimension payload is complete enough for strict judge mode.
+ * @param value Raw dimension payload.
+ * @returns Whether all required fields are present.
+ */
+function isCompleteDimensionPayload(value: LlmJudgeDimensionPayload): boolean {
+  return (
+    typeof value.score === "number" &&
+    typeof value.reason === "string" &&
+    value.reason.trim().length > 0 &&
+    typeof value.evidence === "string" &&
+    value.evidence.trim().length > 0 &&
+    typeof value.confidence === "number"
+  );
+}
+
+/**
+ * Resolve bounded session-level LLM concurrency.
+ * @returns Positive concurrency limit for Judge calls.
+ */
+function resolveSessionJudgeConcurrency(): number {
+  const parsed = Number.parseInt(process.env.ZEVAL_JUDGE_SESSION_CONCURRENCY ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SESSION_JUDGE_CONCURRENCY;
+}
+
+/**
+ * Map items with a bounded number of concurrent async workers.
+ * @param items Input items.
+ * @param concurrency Maximum concurrent operations.
+ * @param mapper Async mapper.
+ * @returns Results in the same order as the input.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) {
+        return;
+      }
+      results[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 /**

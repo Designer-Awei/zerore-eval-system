@@ -90,10 +90,10 @@ const LEGACY_EVAL_CONSOLE_SNAPSHOT_KEY = "zerore:evalConsoleSnapshot:v2";
 const LAST_CUSTOMER_ID_KEY = "zeval:lastCustomerId";
 const LEGACY_LAST_CUSTOMER_ID_KEY = "zerore:lastCustomerId";
 const SGD_SAMPLE_DATASET = {
-  fileName: "sgd-restaurants-sample.json",
-  path: "/datasets/sgd-restaurants-sample.json",
-  title: "餐厅预订任务型助手样例",
-  description: "DSTC8 Schema-Guided Dialogue · Restaurants_1 · 24 turns",
+  fileName: "sgd-train-mini-package.json",
+  path: "/datasets/sgd-train-mini-package.json",
+  title: "SGD 任务型对话评估样例",
+  description: "DSTC8 Schema-Guided Dialogue · train/dialogues_001.json · 128 sessions · schema included",
 };
 
 const STEPS: StepperStep[] = [
@@ -110,11 +110,12 @@ async function requestDataMappingPlan(
   text: string,
   format: UploadFormat,
   fileName: string,
+  useLlm = true,
 ): Promise<DataMappingPlan> {
   const response = await fetch("/api/data-onboarding", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, format, fileName, useLlm: true }),
+    body: JSON.stringify({ text, format, fileName, useLlm }),
   });
   const result = (await response.json()) as { plan?: DataMappingPlan; error?: string };
   if (!response.ok || !result.plan) {
@@ -383,7 +384,7 @@ export function EvalConsole() {
   }
 
   /**
-   * Load the bundled SGD restaurant-booking demo dataset.
+   * Load and run the bundled SGD demo dataset.
    */
   async function handleUseSampleDataset() {
     try {
@@ -407,7 +408,7 @@ export function EvalConsole() {
         throw new Error("示例数据加载失败");
       }
       const text = await sampleResponse.text();
-      setDataMappingPlan(await requestDataMappingPlan(text, "json", SGD_SAMPLE_DATASET.fileName));
+      setDataMappingPlan(await requestDataMappingPlan(text, "json", SGD_SAMPLE_DATASET.fileName, false));
       const response = await fetch("/api/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -417,9 +418,10 @@ export function EvalConsole() {
       if (!response.ok) {
         throw new Error(result.error ?? "示例数据解析失败");
       }
-      setIngestResult(result as IngestResponse);
-      setRunState("ready");
-      setNotice(`已载入示例数据：${SGD_SAMPLE_DATASET.description}，共 ${result.ingestMeta?.rows ?? 0} 条消息。`);
+      const nextIngestResult = result as IngestResponse;
+      setIngestResult(nextIngestResult);
+      setNotice(`已载入示例数据：${SGD_SAMPLE_DATASET.description}，共 ${result.ingestMeta?.rows ?? 0} 条消息。正在运行评估。`);
+      await executeEvaluate(nextIngestResult, { useLlm: true });
     } catch (requestError) {
       setRunState("error");
       setError(requestError instanceof Error ? requestError.message : "示例数据加载失败");
@@ -451,7 +453,16 @@ export function EvalConsole() {
    * Execute the full evaluation flow through the backend API.
    */
   async function handleRunEvaluate() {
-    if (!ingestResult?.rawRows.length) {
+    await executeEvaluate(ingestResult, { useLlm: true });
+  }
+
+  /**
+   * Execute the full evaluation flow through the backend API.
+   * @param source Ingested rows and optional structured metrics.
+   * @param options Runtime evaluation options.
+   */
+  async function executeEvaluate(source: IngestResponse | null, options: { useLlm: boolean }) {
+    if (!source?.rawRows.length) {
       setError("请先上传并完成日志解析。");
       setRunState("error");
       return;
@@ -471,9 +482,10 @@ export function EvalConsole() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rawRows: ingestResult.rawRows,
-          useLlm: true,
-          structuredTaskMetrics: ingestResult.structuredTaskMetrics,
+          rawRows: source.rawRows,
+          useLlm: options.useLlm,
+          judgeRequired: true,
+          structuredTaskMetrics: source.structuredTaskMetrics,
           scenarioId: selectedScenarioId || undefined,
           scenarioContext: selectedScenarioId
             ? {
@@ -680,9 +692,9 @@ export function EvalConsole() {
     },
     {
       key: "warnings",
-      label: "降级提示",
+      label: "运行告警",
       value: `${warnings.length}`,
-      hint: warnings.length ? "包含降级说明" : "无降级告警",
+      hint: warnings.length ? "包含需要处理的链路告警" : "无运行告警",
     },
   ];
 
@@ -881,7 +893,7 @@ function StepUpload(props: StepUploadProps) {
                 disabled={props.sampleLoading || props.runState === "running" || props.runState === "ingesting"}
                 onClick={() => void props.onUseSampleDataset()}
               >
-                {props.sampleLoading ? "载入中…" : "使用示例数据"}
+                {props.sampleLoading ? "运行中..." : "一键运行示例"}
               </button>
               <a
                 className={styles.downloadLinkButton}
@@ -1296,7 +1308,7 @@ function StepEvaluate(props: StepEvaluateProps) {
         <div className={styles.panelHeader}>
           <div>
             <h2>执行状态</h2>
-            <p>当前链路进度、warning 与降级说明。</p>
+            <p>当前链路进度、warning 与失败详情。</p>
           </div>
           <span className={styles.panelMeta}>{getRunStateLabel(props.runState)}</span>
         </div>

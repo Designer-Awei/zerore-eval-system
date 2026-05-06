@@ -52,18 +52,24 @@ type LlmIntentAndJudgePayload = {
   confidence?: number;
 };
 
+type GoalCompletionOptions = {
+  judgeRequired?: boolean;
+};
+
 /**
  * Build goal completion results for every session in the enriched rows.
  *
  * @param rows Enriched rows.
  * @param useLlm Whether LLM fallback is enabled.
  * @param runId Optional run id for logging.
+ * @param options Optional strict judge behavior.
  * @returns One goal completion result per session.
  */
 export async function buildGoalCompletions(
   rows: EnrichedChatlogRow[],
   useLlm: boolean,
   runId?: string,
+  options: GoalCompletionOptions = {},
 ): Promise<GoalCompletionResult[]> {
   const grouped = groupRowsBySession(rows);
   const results: GoalCompletionResult[] = [];
@@ -79,6 +85,10 @@ export async function buildGoalCompletions(
       const llmResult = await evaluateGoalCompletionWithLlm(sessionId, sessionRows, ruleResult, runId);
       results.push(llmResult);
     } catch (error) {
+      if (options.judgeRequired) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Goal completion LLM Judge 失败，session=${sessionId}：${message}`);
+      }
       console.error("Goal completion LLM judge failed:", sessionId, error);
       results.push({
         ...ruleResult,

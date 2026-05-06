@@ -171,6 +171,23 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section className={styles.integrationSection} id="integration">
+          <div className={styles.sectionIntro}>
+            <p className={styles.eyebrowMuted}>{copy.integrationSection.eyebrow}</p>
+            <h2>{copy.integrationSection.title}</h2>
+            <p className={styles.sectionLead}>{copy.integrationSection.lead}</p>
+          </div>
+          <div className={styles.integrationGrid}>
+            {copy.integrations.map((item) => (
+              <article className={styles.integrationCard} key={item.title}>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+                <code>{item.code}</code>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className={styles.section} id="outcomes">
           <div className={styles.sectionIntro}>
             <p className={styles.eyebrowMuted}>{copy.outcomesSection.eyebrow}</p>

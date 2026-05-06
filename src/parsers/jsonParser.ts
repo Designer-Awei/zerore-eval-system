@@ -13,8 +13,9 @@ const ALLOWED_ROLES = new Set<RawChatlogRow["role"]>(["user", "assistant", "syst
  */
 export function parseJsonRows(text: string): RawChatlogRow[] {
   const parsed = parseJsonOrJsonl(text);
-  if (isSgdDialogueArray(parsed)) {
-    return parseSgdDialogues(parsed);
+  const sgdDialogues = getSgdDialogues(parsed);
+  if (sgdDialogues.length > 0) {
+    return parseSgdDialogues(sgdDialogues);
   }
 
   const arrayData = Array.isArray(parsed)
@@ -90,6 +91,56 @@ function isSgdDialogueArray(value: unknown): value is SgdDialogue[] {
         "turns" in item &&
         Array.isArray((item as SgdDialogue).turns),
     )
+  );
+}
+
+/**
+ * Extract SGD dialogues from raw array, wrapper object, or JSONL records.
+ * @param value Parsed JSON value.
+ * @returns SGD dialogue records.
+ */
+function getSgdDialogues(value: unknown): SgdDialogue[] {
+  if (isSgdDialogueArray(value)) {
+    return value;
+  }
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Array.isArray((value as { dialogues?: unknown }).dialogues)
+  ) {
+    return ((value as { dialogues: unknown[] }).dialogues).filter(isSgdDialogue);
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (isSgdDialogue(item)) {
+        return [item];
+      }
+      if (
+        item &&
+        typeof item === "object" &&
+        Array.isArray((item as { dialogues?: unknown }).dialogues)
+      ) {
+        return ((item as { dialogues: unknown[] }).dialogues).filter(isSgdDialogue);
+      }
+      return [];
+    });
+  }
+  return [];
+}
+
+/**
+ * Detect one DSTC8 Schema-Guided Dialogue record.
+ * @param value Candidate value.
+ * @returns Whether value has SGD dialogue shape.
+ */
+function isSgdDialogue(value: unknown): value is SgdDialogue {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "dialogue_id" in value &&
+    "turns" in value &&
+    Array.isArray((value as SgdDialogue).turns)
   );
 }
 

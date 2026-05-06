@@ -68,7 +68,7 @@ export function ExtendedMetricsPanel({ metrics }: ExtendedMetricsPanelProps) {
         <strong>扩展指标未启用</strong>
         <p>
           通过 <code>extendedInputs</code>（retrievalContexts / toolCalls / retentionFacts / roleProfile）
-          提供输入即可解锁 10 项 DeepEval 对齐指标。详见 <a href="/integrations">集成文档</a>。
+          提供输入即可解锁 10 项 DeepEval 对齐指标。接入方法见 README 与产品首页。
         </p>
       </div>
     );

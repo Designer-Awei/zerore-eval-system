@@ -17,7 +17,6 @@ const NAV_ITEMS = [
   { label: "在线评测", href: "/online-eval", match: "/online-eval" },
   { label: "调优包", href: "/remediation-packages", match: "/remediation-packages" },
   { label: "合成", href: "/synthesize", match: "/synthesize" },
-  { label: "集成", href: "/integrations", match: "/integrations" },
 ];
 
 type AppShellProps = {

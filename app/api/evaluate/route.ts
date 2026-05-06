@@ -30,7 +30,11 @@ export async function POST(request: Request) {
     const redaction = redactRawRows(body.rawRows);
     const rawRows = redaction.rows;
     const runId = body.runId ?? `run_${Date.now()}`;
-    const useLlm = Boolean(body.useLlm);
+    const useLlm = body.useLlm ?? true;
+    const judgeRequired = body.judgeRequired ?? true;
+    if (judgeRequired && !useLlm) {
+      return NextResponse.json({ error: "当前产品链路要求 LLM Judge 必须开启，不能以降级模式运行。" }, { status: 400 });
+    }
     if (streamMode) {
       return streamEvaluateRun({
         context,
@@ -39,6 +43,7 @@ export async function POST(request: Request) {
         redactionReport: redaction.report,
         runId,
         useLlm,
+        judgeRequired,
       });
     }
     if (body.asyncMode) {
@@ -52,6 +57,8 @@ export async function POST(request: Request) {
           dataScope,
           rawRows,
           runId,
+          useLlm,
+          judgeRequired,
           piiRedaction: redaction.report,
         },
         maxAttempts: 2,
@@ -62,6 +69,7 @@ export async function POST(request: Request) {
     console.info(`[EVALUATE] runId=${runId} START messages=${rawRows.length} useLlm=${useLlm}`);
     const response = await runEvaluatePipeline(rawRows, {
       useLlm,
+      judgeRequired,
       runId,
       scenarioId: body.scenarioId,
       scenarioContext: body.scenarioContext
@@ -126,6 +134,7 @@ function streamEvaluateRun(input: {
   redactionReport: ReturnType<typeof redactRawRows>["report"];
   runId: string;
   useLlm: boolean;
+  judgeRequired: boolean;
 }): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -140,6 +149,7 @@ function streamEvaluateRun(input: {
         );
         const response = await runEvaluatePipeline(input.rawRows, {
           useLlm: input.useLlm,
+          judgeRequired: input.judgeRequired,
           runId: input.runId,
           scenarioId: input.body.scenarioId,
           scenarioContext: input.body.scenarioContext

@@ -20,7 +20,7 @@ npm run dev
 Open:
 
 ```text
-http://127.0.0.1:3000
+http://localhost:3000
 ```
 
 Useful checks:
@@ -42,12 +42,65 @@ npm run jobs:work:once
 
 ## Main Surfaces
 
-- `/chat`：Chat agent, multi-channel history, Producer / Engineer view modes, evaluation and baseline skills.
+- `/chat`：Chat agent, multi-channel history, evaluation and baseline skills.
 - `/workbench`：upload / ingest / streamed evaluation / charts / baseline trends / remediation package entry.
 - `/datasets`：read-only bad case pool with automatic signals and manual false-positive overrides.
 - `/online-eval`：baseline replay and current-vs-baseline comparison.
 - `/remediation-packages`：Skill-bundle remediation package browser and validation workflow.
-- `/integrations`：SDK, CLI and REST integration snippets.
+- `/synthesize`：LLM-assisted sample generation for evaluation datasets.
+
+## Integration Methods
+
+Start with the smallest path that proves the loop, then automate the same contract in CI or release checks.
+
+### 1. File Upload
+
+Use `/workbench` for demos and first customer datasets.
+
+- Supported files: `CSV / JSON / TXT / MD`.
+- Output: objective metrics, LLM Judge metrics, charts, suggestions, bad cases and baseline artifacts.
+- Best for: sample validation, PM review, bad-case triage.
+
+### 2. REST API
+
+Call the evaluation endpoint with canonical `rawRows`.
+
+```bash
+curl -X POST http://localhost:3000/api/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "useLlm": true,
+    "judgeRequired": true,
+    "rawRows": [
+      {
+        "sessionId": "s1",
+        "timestamp": "2026-05-06T00:00:00.000Z",
+        "role": "user",
+        "content": "我想查一下订单退款进度"
+      },
+      {
+        "sessionId": "s1",
+        "timestamp": "2026-05-06T00:00:10.000Z",
+        "role": "assistant",
+        "content": "我来帮你核对订单状态。"
+      }
+    ]
+  }'
+```
+
+The response follows the product contract:
+
+```text
+meta + objectiveMetrics + subjectiveMetrics + charts + suggestions
+```
+
+### 3. Agent Workflow
+
+Use `/chat` or `/remediation-packages` after an evaluation run.
+
+- Chat can explain results and trigger evaluation/baseline skills.
+- Remediation packages compile bad cases into `issue-brief.md`, `remediation-spec.yaml`, `badcases.jsonl` and `acceptance-gate.yaml`.
+- Replay checks compare current behavior against saved baselines before shipping.
 
 ## Current Scope
 
@@ -63,7 +116,7 @@ Core evaluation layers:
 - parser / normalizer
 - topic segmentation
 - objective metrics
-- subjective LLM judge with degraded fallback
+- subjective LLM judge as a required product dependency
 - bad case harvesting
 - report and suggestion builder
 - baseline storage

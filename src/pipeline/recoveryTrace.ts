@@ -29,6 +29,10 @@ type FailureCandidate = {
   evidenceRows: EnrichedChatlogRow[];
 };
 
+type RecoveryTraceOptions = {
+  judgeRequired?: boolean;
+};
+
 /**
  * Build one recovery trace result per session.
  *
@@ -36,6 +40,7 @@ type FailureCandidate = {
  * @param goalCompletions Session-level goal completion results.
  * @param useLlm Whether LLM summarization is enabled.
  * @param runId Optional run id.
+ * @param options Optional strict judge behavior.
  * @returns Recovery traces.
  */
 export async function buildRecoveryTraces(
@@ -43,6 +48,7 @@ export async function buildRecoveryTraces(
   goalCompletions: GoalCompletionResult[],
   useLlm: boolean,
   runId?: string,
+  options: RecoveryTraceOptions = {},
 ): Promise<RecoveryTraceResult[]> {
   const grouped = groupRowsBySession(rows);
   const goalCompletionMap = new Map(goalCompletions.map((item) => [item.sessionId, item]));
@@ -58,6 +64,10 @@ export async function buildRecoveryTraces(
     try {
       results.push(await enhanceRecoveryTraceWithLlm(trace, sessionRows, runId));
     } catch (error) {
+      if (options.judgeRequired) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Recovery trace LLM Judge 失败，session=${sessionId}：${message}`);
+      }
       console.error("Recovery trace LLM summary failed:", sessionId, error);
       results.push({
         ...trace,

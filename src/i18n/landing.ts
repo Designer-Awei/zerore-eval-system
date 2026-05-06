@@ -21,6 +21,12 @@ export type LandingOutcome = {
   text: string;
 };
 
+export type LandingIntegration = {
+  title: string;
+  text: string;
+  code: string;
+};
+
 export type LandingTestimonial = {
   quote: string;
   author: string;
@@ -54,6 +60,8 @@ export type LandingCopy = {
   capabilities: LandingCapability[];
   loopSection: { eyebrow: string; title: string };
   loopSteps: LandingLoopStep[];
+  integrationSection: { eyebrow: string; title: string; lead: string };
+  integrations: LandingIntegration[];
   outcomesSection: { eyebrow: string; title: string };
   outcomes: LandingOutcome[];
   testimonialsSection: { eyebrow: string; title: string };
@@ -173,6 +181,28 @@ const ZH: LandingCopy = {
     { step: "生成调优包", description: "把 bad case、验收门槛和修复目标编译成结构化任务文件。" },
     { step: "交给 agent 执行", description: "让 Claude Code / Codex 基于调优包改 prompt、policy、orchestration 或代码。" },
     { step: "回放 / 沙箱验证", description: "用 replay、固定批次和 sandbox 证明这次修复真的变好。" },
+  ],
+  integrationSection: {
+    eyebrow: "Integration",
+    title: "三种接入方式，从演示到持续回归。",
+    lead: "先上传一批历史对话跑通闭环；稳定后再接 API，把每次发版前的评估变成固定动作。",
+  },
+  integrations: [
+    {
+      title: "上传文件",
+      text: "CSV / JSON / TXT / MD 直接进工作台，适合验证样例、复盘 bad case 和快速演示。",
+      code: "Workbench upload -> Run Judge -> Save baseline",
+    },
+    {
+      title: "REST API",
+      text: "把 rawRows 发到评估接口，返回 meta、指标、图表、建议和调优包入口。",
+      code: "POST /api/evaluate",
+    },
+    {
+      title: "Agent 工作流",
+      text: "把评估结果交给 Chat 或调优包模块，生成 Claude Code / Codex 可执行任务。",
+      code: "Bad cases -> package -> replay gate",
+    },
   ],
   outcomesSection: { eyebrow: "Outcomes", title: "交付的不是报告本身，而是下一步动作。" },
   outcomes: [
@@ -359,6 +389,28 @@ const EN: LandingCopy = {
     { step: "Compile package", description: "Bundle bad cases, acceptance gates, and fix targets into structured task files." },
     { step: "Hand to agent", description: "Let Claude Code / Codex modify prompt, policy, orchestration, or code from the package." },
     { step: "Replay / sandbox", description: "Use replay, fixed batches, and sandbox to prove the fix actually improved things." },
+  ],
+  integrationSection: {
+    eyebrow: "Integration",
+    title: "Three integration paths, from demo to release gates.",
+    lead: "Start with uploaded transcripts. Once the loop works, call the API before every release and keep baselines comparable.",
+  },
+  integrations: [
+    {
+      title: "File upload",
+      text: "Drop CSV / JSON / TXT / MD into the workbench for demos, bad-case review, and quick validation.",
+      code: "Workbench upload -> Run Judge -> Save baseline",
+    },
+    {
+      title: "REST API",
+      text: "Send rawRows to the evaluation endpoint and receive meta, metrics, charts, suggestions, and package entry points.",
+      code: "POST /api/evaluate",
+    },
+    {
+      title: "Agent workflow",
+      text: "Hand results to Chat or remediation packages and generate tasks executable by Claude Code / Codex.",
+      code: "Bad cases -> package -> replay gate",
+    },
   ],
   outcomesSection: { eyebrow: "Outcomes", title: "What ships isn't a report — it's the next move." },
   outcomes: [

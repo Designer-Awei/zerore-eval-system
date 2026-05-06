@@ -150,6 +150,7 @@ export const evaluateRequestSchema = z.object({
   scenarioId: z.string().min(1).optional(),
   scenarioContext: scenarioContextSchema.optional(),
   useLlm: z.boolean().optional(),
+  judgeRequired: z.boolean().optional(),
   artifactBaseName: z.string().min(1).optional(),
   persistArtifact: z.boolean().optional(),
   asyncMode: z.boolean().optional(),
